@@ -18,7 +18,14 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
 
     // Configure settings via individual API calls
     projectm_set_mesh_size(pm, 140, 110);
-    projectm_set_fps(pm, 60);
+
+    // Detect display refresh rate for ProMotion displays, capped at 120Hz
+    NSInteger refreshRate = 60;
+    if (@available(macOS 12.0, *)) {
+        refreshRate = MIN([NSScreen.mainScreen maximumFramesPerSecond], 120);
+    }
+    projectm_set_fps(pm, (unsigned int)refreshRate);
+    NSLog(@"Display refresh rate: %ld Hz", (long)refreshRate);
     projectm_set_soft_cut_duration(pm, 2.0);
     projectm_set_aspect_correction(pm, true);
     projectm_set_easter_egg(pm, 0.0f);
@@ -182,10 +189,16 @@ void UpdateInfoTimeOut( VisualPluginData * visualPluginData )
 void UpdatePulseRate( VisualPluginData * visualPluginData, UInt32 * ioPulseRate )
 {
 	// vary the pulse rate based on whether or not iTunes is currently playing
-	if ( visualPluginData->playing )
-		*ioPulseRate = kPlayingPulseRateInHz;
-	else
+	if ( visualPluginData->playing ) {
+		// Detect display refresh rate for ProMotion displays, capped at 120Hz
+		NSInteger refreshRate = kPlayingPulseRateInHz;
+		if (@available(macOS 12.0, *)) {
+			refreshRate = MIN([NSScreen.mainScreen maximumFramesPerSecond], 120);
+		}
+		*ioPulseRate = (UInt32)refreshRate;
+	} else {
 		*ioPulseRate = kStoppedPulseRateInHz;
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
