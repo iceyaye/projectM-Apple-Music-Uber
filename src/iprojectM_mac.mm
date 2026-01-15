@@ -371,6 +371,12 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
                 projectm_playlist_play_next(_visualPluginData->playlist, true);
             }
             return;
+        case kVK_ANSI_L: // 'l' for lock/unlock preset
+            if (_visualPluginData && _visualPluginData->pm) {
+                bool locked = projectm_get_preset_locked(_visualPluginData->pm);
+                projectm_set_preset_locked(_visualPluginData->pm, !locked);
+            }
+            return;
         default:
             break;
     }
