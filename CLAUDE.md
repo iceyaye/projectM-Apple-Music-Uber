@@ -106,11 +106,13 @@ struct VisualPluginData {
 - `n` - Next preset
 - `p` - Previous preset
 - `r` - Random preset (hard cut)
+- `l` - Lock/unlock current preset (prevents auto-advancement)
 
 **Technical notes:**
 - Uses projectM 4.x API with separate playlist library
 - OpenGL 3.2 Core Profile with high-DPI support (deprecated by Apple, but functional)
-- 60 FPS when playing, 5 FPS when stopped
+- Dynamic refresh rate detection for high-refresh displays (capped at 120Hz, falls back to 60Hz on older macOS)
+- 5 FPS when stopped to conserve power
 - Audio data is interleaved from dual channels before passing to projectM via `projectm_pcm_add_uint8()`
 - Rendering via `projectm_opengl_render_frame()`
 - Plugin runs in iTunes' main UI thread
