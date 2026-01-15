@@ -129,5 +129,5 @@ The `.pkg` installer:
 codesign -dv --verbose=2 ~/Library/iTunes/iTunes\ Plug-ins/ProjectM.bundle
 
 # Check package signature
-pkgutil --check-signature ProjectM-MusicPlugin-3.0.pkg
+pkgutil --check-signature ProjectM-MusicPlugin-4.1.pkg
 ```

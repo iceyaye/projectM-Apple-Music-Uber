@@ -7,9 +7,14 @@ install(TARGETS ProjectM
     COMPONENT MusicPlugin
     )
 
-install(FILES src/Resources/ProjectM-plugin-info.plist
+# Configure Info.plist with version substitution
+configure_file(src/Resources/ProjectM-plugin-info.plist
+    "${CMAKE_BINARY_DIR}/Info.plist"
+    @ONLY
+    )
+
+install(FILES "${CMAKE_BINARY_DIR}/Info.plist"
     DESTINATION "${PROJECTM_PLUGIN_BUNDLE_DIR}/Contents/"
-    RENAME Info.plist
     COMPONENT MusicPlugin
     )
 
