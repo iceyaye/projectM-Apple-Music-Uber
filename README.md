@@ -47,6 +47,7 @@ frontend-music-plug-in/
 ```bash
 # Configure
 cmake -B build -S . \
+  -DCMAKE_BUILD_TYPE=Release \
   -DPRESET_DIRS="$(pwd)/presets;$(pwd)/textures" \
   -DCMAKE_PREFIX_PATH=/usr/local
 
@@ -63,6 +64,7 @@ For distribution, build a universal binary with Developer ID signing:
 
 ```bash
 cmake -B build -S . \
+  -DCMAKE_BUILD_TYPE=Release \
   -DPRESET_DIRS="$(pwd)/presets;$(pwd)/textures" \
   -DCMAKE_PREFIX_PATH=/usr/local \
   -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
@@ -90,6 +92,7 @@ While the visualizer is running:
 - `n` - Next preset
 - `p` - Previous preset
 - `r` - Random preset (hard cut)
+- `l` - Lock/unlock current preset
 
 ## Uninstalling
 
