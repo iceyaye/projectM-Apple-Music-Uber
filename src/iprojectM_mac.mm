@@ -289,6 +289,10 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
         return self;
     }
 
+    // Enable VSync to avoid rendering more frames than the display can show
+    GLint swapInterval = 1;
+    [[self openGLContext] setValues:&swapInterval forParameter:NSOpenGLCPSwapInterval];
+
     NSLog(@"super initWithFrame called");
 
     return self;

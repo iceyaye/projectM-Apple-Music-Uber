@@ -128,13 +128,12 @@ struct VisualPluginData
 
 	Boolean				playing;								// is iTunes currently playing audio?
 	Boolean				padding[3];
-    
+
     Boolean             readyToDraw;
 
-	time_t				drawInfoTimeOut;						// when should we stop showing info/artwork?
+	UInt32				cachedRefreshRate;						// display refresh rate (cached at activation)
 
-	UInt8				minLevel[kVisualMaxDataChannels];		// 0-128
-	UInt8				maxLevel[kVisualMaxDataChannels];		// 0-128
+	time_t				drawInfoTimeOut;						// when should we stop showing info/artwork?
 };
 typedef struct VisualPluginData VisualPluginData;
 

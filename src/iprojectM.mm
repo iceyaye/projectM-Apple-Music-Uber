@@ -20,12 +20,13 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
     projectm_set_mesh_size(pm, 140, 110);
 
     // Detect display refresh rate for ProMotion displays, capped at 120Hz
-    NSInteger refreshRate = 60;
+    UInt32 refreshRate = 60;
     if (@available(macOS 12.0, *)) {
-        refreshRate = MIN([NSScreen.mainScreen maximumFramesPerSecond], 120);
+        refreshRate = (UInt32)MIN([NSScreen.mainScreen maximumFramesPerSecond], 120);
     }
-    projectm_set_fps(pm, (unsigned int)refreshRate);
-    NSLog(@"Display refresh rate: %ld Hz", (long)refreshRate);
+    visualPluginData->cachedRefreshRate = refreshRate;
+    projectm_set_fps(pm, refreshRate);
+    NSLog(@"Display refresh rate: %u Hz", refreshRate);
     projectm_set_soft_cut_duration(pm, 2.0);
     projectm_set_aspect_correction(pm, true);
     projectm_set_easter_egg(pm, 0.0f);
@@ -112,8 +113,6 @@ void renderProjectMTexture( VisualPluginData * visualPluginData ){
 //
 void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID, const RenderVisualData * renderData )
 {
-	SInt16 index;
-	SInt32 channel;
     projectm_handle  pm = visualPluginData->pm;
 
 	visualPluginData->renderTimeStampID	= timeStampID;
@@ -125,25 +124,6 @@ void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID,
 	}
 
 	visualPluginData->renderData = *renderData;
-	
-	for ( channel = 0;channel < renderData->numSpectrumChannels; channel++ )
-	{
-		visualPluginData->minLevel[channel] = 
-			visualPluginData->maxLevel[channel] = 
-			renderData->spectrumData[channel][0];
-
-		for ( index = 1; index < kVisualNumSpectrumEntries; index++ )
-		{
-			UInt8		value;
-			
-			value = renderData->spectrumData[channel][index];
-
-			if ( value < visualPluginData->minLevel[channel] )
-				visualPluginData->minLevel[channel] = value;
-			else if ( value > visualPluginData->maxLevel[channel] )
-				visualPluginData->maxLevel[channel] = value;
-		}
-	}
 
 	if (pm == nullptr)
 	{
@@ -169,7 +149,6 @@ void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID,
 void ResetRenderData( VisualPluginData * visualPluginData )
 {
 	memset( &visualPluginData->renderData, 0, sizeof(visualPluginData->renderData) );
-	memset( visualPluginData->minLevel, 0, sizeof(visualPluginData->minLevel) );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -190,12 +169,8 @@ void UpdatePulseRate( VisualPluginData * visualPluginData, UInt32 * ioPulseRate 
 {
 	// vary the pulse rate based on whether or not iTunes is currently playing
 	if ( visualPluginData->playing ) {
-		// Detect display refresh rate for ProMotion displays, capped at 120Hz
-		NSInteger refreshRate = kPlayingPulseRateInHz;
-		if (@available(macOS 12.0, *)) {
-			refreshRate = MIN([NSScreen.mainScreen maximumFramesPerSecond], 120);
-		}
-		*ioPulseRate = (UInt32)refreshRate;
+		// Use cached refresh rate (set during activation)
+		*ioPulseRate = visualPluginData->cachedRefreshRate ? visualPluginData->cachedRefreshRate : kPlayingPulseRateInHz;
 	} else {
 		*ioPulseRate = kStoppedPulseRateInHz;
 	}
