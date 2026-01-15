@@ -31,6 +31,9 @@ install(SCRIPT "${CMAKE_BINARY_DIR}/install-codesign.cmake"
     COMPONENT MusicPlugin
     )
 
+# Postinstall script to create uninstaller
+set(CPACK_POSTFLIGHT_MUSICPLUGIN_SCRIPT "${CMAKE_SOURCE_DIR}/src/Resources/postinstall")
+
 # Build PKG installer with CPack
 set(CPACK_GENERATOR "productbuild")
 set(CPACK_COMPONENTS_ALL "MusicPlugin")

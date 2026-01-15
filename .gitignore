@@ -1,1 +1,25 @@
-iProjectM.pkg
+# Build artifacts
+build/
+_CPack_Packages/
+*.pkg
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Presets and textures (download separately - see README)
+presets/
+textures/
+
+# macOS
+.DS_Store
+._*
+
+# IDE
+.idea/
+*.xcodeproj/
+*.xcworkspace/
+.vscode/
+
+# Editor backups
+*~
+*.swp

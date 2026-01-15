@@ -6,17 +6,16 @@
 // https://www.fenestrated.net/mirrors/Apple%20Technotes%20(As%20of%202002)/tn/tn2016.html
 
 #import "iprojectM.hpp"
-#import "CocoaKeysToProjectM.h"
+#import "projectM-4/playlist.h"
 
 #import <AppKit/AppKit.h>
+#import <Carbon/Carbon.h>
 #import <OpenGL/gl3.h>
 #import <string.h>
 
 #define kTVisualPluginName CFSTR("projectM")
 
 extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *inMessageInfoPtr, void *refCon ) __attribute__((visibility("default")));
-
-static bool _keypressProjectM( VisualPluginData * visualPluginData, projectMEvent eventType, NSEvent *event );
 
 #if USE_SUBVIEW
 @interface VisualView : NSOpenGLView
@@ -49,7 +48,7 @@ void DrawVisual( VisualPluginData * visualPluginData )
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
     // render
-    projectm_render_frame(visualPluginData->pm);
+    projectm_opengl_render_frame(visualPluginData->pm);
 
     glFlush();
     
@@ -345,27 +344,9 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
 }
 
 - (void)keyDown:(NSEvent *)event {
-    if ( _keypressProjectM( _visualPluginData, PROJECTM_KEYDOWN, event ) )
-        return;
-
-	[super keyDown:event];
-}
-
-- (void)keyUp:(NSEvent *)event {
-    if ( _keypressProjectM( _visualPluginData, PROJECTM_KEYUP, event ) )
-        return;
-    
-	[super keyUp:event];
-}
-
-static bool _keypressProjectM( VisualPluginData * visualPluginData, projectMEvent eventType, NSEvent *eventRec ) {
-    // Handle key events here.
-	// Do not eat the space bar, ESC key, TAB key, or the arrow keys: iTunes reserves those keys.
-    
-    projectMKeycode keycode = cocoa2pmKeycode(eventRec);
-    projectMModifier mod = cocoa2pmModifier(eventRec);
-    
-    switch ([eventRec keyCode]) {
+    // Handle key events for playlist navigation
+    // Do not eat the space bar, ESC key, TAB key, or the arrow keys: iTunes reserves those keys.
+    switch ([event keyCode]) {
         case kVK_Tab:
         case kVK_Space:
         case kVK_LeftArrow:
@@ -373,14 +354,30 @@ static bool _keypressProjectM( VisualPluginData * visualPluginData, projectMEven
         case kVK_UpArrow:
         case kVK_DownArrow:
         case kVK_Escape:
-            break;
-            
+            [super keyDown:event];
+            return;
+        case kVK_ANSI_N: // 'n' for next preset
+            if (_visualPluginData && _visualPluginData->playlist) {
+                projectm_playlist_play_next(_visualPluginData->playlist, false);
+            }
+            return;
+        case kVK_ANSI_P: // 'p' for previous preset
+            if (_visualPluginData && _visualPluginData->playlist) {
+                projectm_playlist_play_previous(_visualPluginData->playlist, false);
+            }
+            return;
+        case kVK_ANSI_R: // 'r' for random preset
+            if (_visualPluginData && _visualPluginData->playlist) {
+                projectm_playlist_play_next(_visualPluginData->playlist, true);
+            }
+            return;
         default:
-            keypressProjectM( visualPluginData, eventType, keycode, mod );
-            return true;
+            break;
     }
-    
-    return false;
+}
+
+- (void)keyUp:(NSEvent *)event {
+    [super keyUp:event];
 }
 
 @end

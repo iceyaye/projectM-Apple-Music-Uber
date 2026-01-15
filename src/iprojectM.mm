@@ -3,49 +3,57 @@
 
 
 #include "iprojectM.hpp"
+#include "projectM-4/playlist.h"
 #include <string.h>
 
 
 // projectM
 void initProjectM( VisualPluginData * visualPluginData, std::string presetPath ) {
-//    std::string config_filename = getConfigFilename();
-    std::string cfg_path = "/usr/local/share/projectM/config.inp";
+    // Create projectM instance (requires valid OpenGL context)
+    projectm_handle pm = projectm_create();
+    if (pm == nullptr) {
+        NSLog(@"Failed to create projectM instance");
+        return;
+    }
 
-    // hardcoded settings - disabled
-    projectm_settings settings{};
-    settings.mesh_x = 140;
-    settings.mesh_y = 110;
-    settings.fps   = 60;
-    settings.texture_size = 2048;  // idk?
-    settings.window_width = 0; // Keep at 0 until we have the proper size.
-    settings.window_height = 0; // Keep at 0 until we have the proper size.
-    settings.soft_cut_duration = 2.0; // seconds
-    settings.aspect_correction = 1;
-    settings.easter_egg = 0; // ???
-    settings.preset_duration = 30.0; // seconds
-    settings.beat_sensitivity = 3;
-    settings.shuffle_enabled = true;
-    settings.soft_cut_ratings_enabled = false; // ???
-    settings.preset_url = projectm_alloc_string(presetPath.length() + 1);
-    strncpy(settings.preset_url, presetPath.c_str(), presetPath.length());
+    // Configure settings via individual API calls
+    projectm_set_mesh_size(pm, 140, 110);
+    projectm_set_fps(pm, 60);
+    projectm_set_soft_cut_duration(pm, 2.0);
+    projectm_set_aspect_correction(pm, true);
+    projectm_set_easter_egg(pm, 0.0f);
+    projectm_set_preset_duration(pm, 30.0);
+    projectm_set_beat_sensitivity(pm, 3.0f);
 
-    projectm_handle pm = projectm_create_settings(&settings, PROJECTM_FLAG_NONE);
+    // Set texture search paths
+    const char* texturePaths[] = { presetPath.c_str() };
+    projectm_set_texture_search_paths(pm, texturePaths, 1);
 
-    projectm_free_string(settings.preset_url);
-    
     NSLog(@"GL_VERSION: %s", glGetString(GL_VERSION));
     NSLog(@"GL_SHADING_LANGUAGE_VERSION: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
     NSLog(@"GL_VENDOR: %s", glGetString(GL_VENDOR));
 
     visualPluginData->pm = pm;
 
-    projectm_select_random_preset(pm, true);
-    NSLog(@"random selected");
+    // Create playlist and add presets
+    projectm_playlist_handle playlist = projectm_playlist_create(pm);
+    if (playlist != nullptr) {
+        projectm_playlist_add_path(playlist, presetPath.c_str(), true, false);
+        projectm_playlist_set_shuffle(playlist, true);
+        visualPluginData->playlist = playlist;
+
+        // Start playing first preset
+        if (projectm_playlist_size(playlist) > 0) {
+            projectm_playlist_play_next(playlist, true);
+        }
+        NSLog(@"Playlist created with %u presets", projectm_playlist_size(playlist));
+    } else {
+        NSLog(@"Failed to create playlist");
+    }
 }
 
-void keypressProjectM( VisualPluginData * visualPluginData, projectMEvent event, projectMKeycode keycode, projectMModifier mod ) {
-    projectm_key_handler(visualPluginData->pm, event, keycode, mod);
-}
+// Keyboard handling removed in projectM 4.x API
+// Key events can be handled manually via playlist functions if needed
 
 void renderProjectMTexture( VisualPluginData * visualPluginData ){
     // this needs to be updated for gl3 (see SDL version)
@@ -267,6 +275,10 @@ static OSStatus VisualPluginHandler(OSType message,VisualPluginMessageInfo *mess
 		case kVisualPluginCleanupMessage:
 		{
 			if ( visualPluginData != NULL ) {
+                if (visualPluginData->playlist) {
+                    projectm_playlist_destroy(visualPluginData->playlist);
+                    visualPluginData->playlist = NULL;
+                }
                 if (visualPluginData->pm) {
                     projectm_destroy(visualPluginData->pm);
                     visualPluginData->pm = NULL;
