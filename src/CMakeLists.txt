@@ -12,6 +12,8 @@ add_library(ProjectM MODULE
 
 set_target_properties(ProjectM PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ProjectM-plugin-info.plist"
+    BUILD_RPATH "/usr/local/lib"
+    INSTALL_RPATH "/usr/local/lib"
     )
 
 target_link_libraries(ProjectM
@@ -20,5 +22,7 @@ target_link_libraries(ProjectM
     "-framework AppKit"
     "-framework CoreData"
     "-framework Foundation"
-    libprojectM::static
+    "-framework QuartzCore"
+    libprojectM::projectM
+    libprojectM::playlist
     )

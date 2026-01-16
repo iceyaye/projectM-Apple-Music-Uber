@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
 
 project(projectM-Apple-Music-PlugIn
-    VERSION 3.0
+    VERSION 4.1
     LANGUAGES OBJC C CXX
     )
 
@@ -21,7 +21,8 @@ if(PRESET_DIRS STREQUAL "")
     message(FATAL_ERROR "PRESET_DIRS must be set to at least one preset and/or texture dir.")
 endif()
 
-find_package(libprojectM REQUIRED)
+find_package(projectM4 REQUIRED)
+find_package(projectM4Playlist REQUIRED)
 
 add_subdirectory(src)
 

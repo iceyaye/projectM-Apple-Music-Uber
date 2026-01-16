@@ -1,0 +1,62 @@
+#!/bin/bash
+# Create uninstaller in /Applications/Utilities/
+
+UNINSTALLER="/Applications/Utilities/Uninstall projectM.app"
+
+# Create the uninstaller app bundle structure
+mkdir -p "$UNINSTALLER/Contents/MacOS"
+
+cat > "$UNINSTALLER/Contents/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleExecutable</key>
+    <string>uninstall</string>
+    <key>CFBundleIdentifier</key>
+    <string>net.projectm.uninstaller</string>
+    <key>CFBundleName</key>
+    <string>Uninstall projectM</string>
+    <key>CFBundleVersion</key>
+    <string>1.0</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>10.13</string>
+</dict>
+</plist>
+PLIST
+
+cat > "$UNINSTALLER/Contents/MacOS/uninstall" << 'SCRIPT'
+#!/bin/bash
+
+osascript -e 'display dialog "This will uninstall projectM Music Plugin. Continue?" buttons {"Cancel", "Uninstall"} default button "Uninstall" with icon caution' || exit 0
+
+REMOVED=""
+
+# Remove from user directory
+if [ -d "$HOME/Library/iTunes/iTunes Plug-ins/ProjectM.bundle" ]; then
+    rm -rf "$HOME/Library/iTunes/iTunes Plug-ins/ProjectM.bundle"
+    REMOVED="$REMOVED\n• ~/Library/iTunes/iTunes Plug-ins/"
+fi
+
+# Remove from system directory (requires admin)
+if [ -d "/Library/iTunes/iTunes Plug-ins/ProjectM.bundle" ]; then
+    osascript -e 'do shell script "rm -rf /Library/iTunes/iTunes\\ Plug-ins/ProjectM.bundle" with administrator privileges'
+    REMOVED="$REMOVED\n• /Library/iTunes/iTunes Plug-ins/"
+fi
+
+# Remove this uninstaller
+osascript -e 'do shell script "rm -rf /Applications/Utilities/Uninstall\\ projectM.app" with administrator privileges' &
+
+if [ -n "$REMOVED" ]; then
+    osascript -e "display dialog \"projectM Music Plugin has been uninstalled from:$REMOVED\n\nPlease restart Music app.\" buttons {\"OK\"} default button \"OK\""
+else
+    osascript -e 'display dialog "projectM Music Plugin was not found." buttons {"OK"} default button "OK"'
+fi
+SCRIPT
+
+chmod +x "$UNINSTALLER/Contents/MacOS/uninstall"
+exit 0

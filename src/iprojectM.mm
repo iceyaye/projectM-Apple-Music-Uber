@@ -3,48 +3,176 @@
 
 
 #include "iprojectM.hpp"
+#include "projectM-4/playlist.h"
 #include <string.h>
 
+// NSUserDefaults keys (must match iprojectM_mac.mm)
+static NSString * const kProjectMMeshQuality = @"projectM.meshQuality";
+static NSString * const kProjectMPresetDuration = @"projectM.presetDuration";
+static NSString * const kProjectMBeatSensitivity = @"projectM.beatSensitivity";
+static NSString * const kProjectMShuffleEnabled = @"projectM.shuffleEnabled";
+static NSString * const kProjectMHardCutEnabled = @"projectM.hardCutEnabled";
+static NSString * const kProjectMHardCutSensitivity = @"projectM.hardCutSensitivity";
+static NSString * const kProjectMSoftCutDuration = @"projectM.softCutDuration";
+static NSString * const kProjectMShowFPS = @"projectM.showFPS";
 
 // projectM
 void initProjectM( VisualPluginData * visualPluginData, std::string presetPath ) {
-//    std::string config_filename = getConfigFilename();
-    std::string cfg_path = "/usr/local/share/projectM/config.inp";
+    // Create projectM instance (requires valid OpenGL context)
+    projectm_handle pm = projectm_create();
+    if (pm == nullptr) {
+        NSLog(@"Failed to create projectM instance");
+        return;
+    }
 
-    // hardcoded settings - disabled
-    projectm_settings settings;
-    settings.mesh_x = 140;
-    settings.mesh_y = 110;
-    settings.fps   = 60;
-    settings.texture_size = 2048;  // idk?
-    settings.window_width = 0; // Keep at 0 until we have the proper size.
-    settings.window_height = 0; // Keep at 0 until we have the proper size.
-    settings.soft_cut_duration = 2.0; // seconds
-    settings.aspect_correction = 1;
-    settings.easter_egg = 0; // ???
-    settings.preset_duration = 30.0; // seconds
-    settings.beat_sensitivity = 3;
-    settings.shuffle_enabled = true;
-    settings.soft_cut_ratings_enabled = false; // ???
-    settings.preset_url = projectm_alloc_string(presetPath.length() + 1);
-    strncpy(settings.preset_url, presetPath.c_str(), presetPath.length());
+    // Load saved settings from NSUserDefaults
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
-    projectm_handle pm = projectm_create_settings(&settings, PROJECTM_FLAG_NONE);
+    // Mesh quality: 0=auto, 1=high, 2=medium, 3=low
+    NSInteger meshQuality = [defaults objectForKey:kProjectMMeshQuality] ? [defaults integerForKey:kProjectMMeshQuality] : 0;
 
-    projectm_free_string(settings.preset_url);
-    
+    // Configure mesh settings
+    visualPluginData->framesAtCurrentLevel = 0;
+    visualPluginData->frameCounter = 0;
+
+    if (meshQuality == 0) {
+        // Auto/Adaptive - start at highest quality
+        visualPluginData->meshQualityLevel = 0;
+        visualPluginData->adaptiveMeshEnabled = true;
+        projectm_set_mesh_size(pm, kMeshSizes[0][0], kMeshSizes[0][1]);
+    } else {
+        // Manual quality: 1=high(0), 2=medium(1), 3=low(2)
+        int level = (int)(meshQuality - 1);
+        visualPluginData->meshQualityLevel = level;
+        visualPluginData->adaptiveMeshEnabled = false;
+        projectm_set_mesh_size(pm, kMeshSizes[level][0], kMeshSizes[level][1]);
+    }
+
+    // Detect display refresh rate for ProMotion displays
+    UInt32 refreshRate = 60;
+    if (@available(macOS 12.0, *)) {
+        refreshRate = (UInt32)MIN([NSScreen.mainScreen maximumFramesPerSecond], 240);
+    }
+    visualPluginData->cachedRefreshRate = refreshRate;
+    projectm_set_fps(pm, refreshRate);
+    NSLog(@"Display refresh rate: %u Hz", refreshRate);
+
+    projectm_set_aspect_correction(pm, true);
+    projectm_set_easter_egg(pm, 0.0f);
+
+    // Load preset duration (default 30s)
+    double presetDuration = [defaults objectForKey:kProjectMPresetDuration] ? [defaults doubleForKey:kProjectMPresetDuration] : 30.0;
+    projectm_set_preset_duration(pm, presetDuration);
+
+    // Load beat sensitivity (default 3.0)
+    double beatSensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
+    projectm_set_beat_sensitivity(pm, (float)beatSensitivity);
+
+    // Load hard cut settings (default: enabled, sensitivity 2.0)
+    BOOL hardCutEnabled = [defaults objectForKey:kProjectMHardCutEnabled] ? [defaults boolForKey:kProjectMHardCutEnabled] : YES;
+    projectm_set_hard_cut_enabled(pm, hardCutEnabled);
+
+    double hardCutSensitivity = [defaults objectForKey:kProjectMHardCutSensitivity] ? [defaults doubleForKey:kProjectMHardCutSensitivity] : 2.0;
+    projectm_set_hard_cut_sensitivity(pm, (float)hardCutSensitivity);
+
+    // Load soft cut duration (default 2.0s)
+    double softCutDuration = [defaults objectForKey:kProjectMSoftCutDuration] ? [defaults doubleForKey:kProjectMSoftCutDuration] : 2.0;
+    projectm_set_soft_cut_duration(pm, softCutDuration);
+
+    // Set texture search paths
+    const char* texturePaths[] = { presetPath.c_str() };
+    projectm_set_texture_search_paths(pm, texturePaths, 1);
+
     NSLog(@"GL_VERSION: %s", glGetString(GL_VERSION));
     NSLog(@"GL_SHADING_LANGUAGE_VERSION: %s", glGetString(GL_SHADING_LANGUAGE_VERSION));
     NSLog(@"GL_VENDOR: %s", glGetString(GL_VENDOR));
 
     visualPluginData->pm = pm;
 
-    projectm_select_random_preset(pm, true);
-    NSLog(@"random selected");
+    // Create playlist and add presets
+    projectm_playlist_handle playlist = projectm_playlist_create(pm);
+    if (playlist != nullptr) {
+        projectm_playlist_add_path(playlist, presetPath.c_str(), true, false);
+
+        // Load shuffle setting (default: enabled)
+        BOOL shuffleEnabled = [defaults objectForKey:kProjectMShuffleEnabled] ? [defaults boolForKey:kProjectMShuffleEnabled] : YES;
+        projectm_playlist_set_shuffle(playlist, shuffleEnabled);
+
+        visualPluginData->playlist = playlist;
+
+        // Start playing first preset
+        if (projectm_playlist_size(playlist) > 0) {
+            projectm_playlist_play_next(playlist, true);
+        }
+        NSLog(@"Playlist created with %u presets", projectm_playlist_size(playlist));
+    } else {
+        NSLog(@"Failed to create playlist");
+    }
+
+    // Load showFPS setting (default: disabled)
+    visualPluginData->showFPS = [defaults objectForKey:kProjectMShowFPS] ? [defaults boolForKey:kProjectMShowFPS] : NO;
 }
 
-void keypressProjectM( VisualPluginData * visualPluginData, projectMEvent event, projectMKeycode keycode, projectMModifier mod ) {
-    projectm_key_handler(visualPluginData->pm, event, keycode, mod);
+// Keyboard handling removed in projectM 4.x API
+// Key events can be handled manually via playlist functions if needed
+
+//-------------------------------------------------------------------------------------------------
+//	AdaptMeshQuality
+//-------------------------------------------------------------------------------------------------
+// Dynamically adjusts mesh resolution based on FPS performance
+//
+void AdaptMeshQuality( VisualPluginData * visualPluginData )
+{
+    if (visualPluginData->pm == nullptr) {
+        return;
+    }
+
+    // Skip if adaptive mesh is disabled (manually set via 1/2/3 keys)
+    if (!visualPluginData->adaptiveMeshEnabled) {
+        return;
+    }
+
+    // Only check every 60 frames (~0.5-1 sec depending on refresh rate)
+    visualPluginData->frameCounter++;
+    if (visualPluginData->frameCounter < 60) {
+        return;
+    }
+    visualPluginData->frameCounter = 0;
+
+    // Use measured FPS, not projectM's target FPS
+    double fps = visualPluginData->measuredFPS;
+    double target = (double)visualPluginData->cachedRefreshRate;
+    int currentLevel = visualPluginData->meshQualityLevel;
+
+    // If FPS drops below 80% of target, reduce quality immediately
+    if (fps < target * 0.8 && currentLevel < kMeshQualityLevels - 1) {
+        currentLevel++;
+        projectm_set_mesh_size(visualPluginData->pm,
+                               kMeshSizes[currentLevel][0],
+                               kMeshSizes[currentLevel][1]);
+        visualPluginData->meshQualityLevel = currentLevel;
+        visualPluginData->framesAtCurrentLevel = 0;
+        NSLog(@"Mesh quality reduced to level %d (%dx%d) - FPS: %.1f",
+              currentLevel, kMeshSizes[currentLevel][0], kMeshSizes[currentLevel][1], fps);
+    }
+    // If FPS is consistently above 95% of target, consider raising quality
+    else if (fps > target * 0.95 && currentLevel > 0) {
+        visualPluginData->framesAtCurrentLevel++;
+        // Wait ~2 seconds of sustained good performance before upgrading
+        if (visualPluginData->framesAtCurrentLevel >= 4) {
+            currentLevel--;
+            projectm_set_mesh_size(visualPluginData->pm,
+                                   kMeshSizes[currentLevel][0],
+                                   kMeshSizes[currentLevel][1]);
+            visualPluginData->meshQualityLevel = currentLevel;
+            visualPluginData->framesAtCurrentLevel = 0;
+            NSLog(@"Mesh quality raised to level %d (%dx%d) - FPS: %.1f",
+                  currentLevel, kMeshSizes[currentLevel][0], kMeshSizes[currentLevel][1], fps);
+        }
+    } else {
+        // Reset stability counter if FPS fluctuates
+        visualPluginData->framesAtCurrentLevel = 0;
+    }
 }
 
 void renderProjectMTexture( VisualPluginData * visualPluginData ){
@@ -97,44 +225,33 @@ void renderProjectMTexture( VisualPluginData * visualPluginData ){
 //
 void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID, const RenderVisualData * renderData )
 {
-	SInt16 index;
-	SInt32 channel;
     projectm_handle  pm = visualPluginData->pm;
 
 	visualPluginData->renderTimeStampID	= timeStampID;
 
-	if ( renderData == NULL )
+	if (renderData == nullptr)
 	{
 		memset( &visualPluginData->renderData, 0, sizeof(visualPluginData->renderData) );
 		return;
 	}
 
 	visualPluginData->renderData = *renderData;
-	
-	for ( channel = 0;channel < renderData->numSpectrumChannels; channel++ )
+
+	if (pm == nullptr)
 	{
-		visualPluginData->minLevel[channel] = 
-			visualPluginData->maxLevel[channel] = 
-			renderData->spectrumData[channel][0];
-
-		for ( index = 1; index < kVisualNumSpectrumEntries; index++ )
-		{
-			UInt8		value;
-			
-			value = renderData->spectrumData[channel][index];
-
-			if ( value < visualPluginData->minLevel[channel] )
-				visualPluginData->minLevel[channel] = value;
-			else if ( value > visualPluginData->maxLevel[channel] )
-				visualPluginData->maxLevel[channel] = value;
-		}
+	    return;
 	}
-    
-    if (pm != NULL) {
-        // pass waveform data to projectM
-        projectm_pcm_add_uint8(pm, reinterpret_cast<const uint8_t*>(renderData->waveformData[0][0]),
-                               512, PROJECTM_STEREO);
-    }
+
+	// Interleave audio data from the two channel buffers
+	UInt8 interleavedData[kVisualNumWaveformEntries][kVisualMaxDataChannels];
+	for (auto sample = 0; sample < kVisualNumWaveformEntries; sample++)
+	{
+	    interleavedData[sample][0] = renderData->waveformData[0][sample];
+	    interleavedData[sample][1] = renderData->waveformData[1][sample];
+	}
+
+    // pass waveform data to projectM
+    projectm_pcm_add_uint8(pm, &interleavedData[0][0],512, PROJECTM_STEREO);
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -144,7 +261,6 @@ void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID,
 void ResetRenderData( VisualPluginData * visualPluginData )
 {
 	memset( &visualPluginData->renderData, 0, sizeof(visualPluginData->renderData) );
-	memset( visualPluginData->minLevel, 0, sizeof(visualPluginData->minLevel) );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -164,10 +280,12 @@ void UpdateInfoTimeOut( VisualPluginData * visualPluginData )
 void UpdatePulseRate( VisualPluginData * visualPluginData, UInt32 * ioPulseRate )
 {
 	// vary the pulse rate based on whether or not iTunes is currently playing
-	if ( visualPluginData->playing )
-		*ioPulseRate = kPlayingPulseRateInHz;
-	else
+	if ( visualPluginData->playing ) {
+		// Use cached refresh rate (set during activation)
+		*ioPulseRate = visualPluginData->cachedRefreshRate ? visualPluginData->cachedRefreshRate : kPlayingPulseRateInHz;
+	} else {
 		*ioPulseRate = kStoppedPulseRateInHz;
+	}
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -215,6 +333,9 @@ void PulseVisual( VisualPluginData * visualPluginData, UInt32 timeStampID, const
 
 	// if desired, adjust the pulse rate
 	UpdatePulseRate( visualPluginData, ioPulseRate );
+
+	// dynamically adjust mesh quality based on performance
+	AdaptMeshQuality( visualPluginData );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -257,6 +378,10 @@ static OSStatus VisualPluginHandler(OSType message,VisualPluginMessageInfo *mess
 		case kVisualPluginCleanupMessage:
 		{
 			if ( visualPluginData != NULL ) {
+                if (visualPluginData->playlist) {
+                    projectm_playlist_destroy(visualPluginData->playlist);
+                    visualPluginData->playlist = NULL;
+                }
                 if (visualPluginData->pm) {
                     projectm_destroy(visualPluginData->pm);
                     visualPluginData->pm = NULL;
@@ -352,6 +477,11 @@ static OSStatus VisualPluginHandler(OSType message,VisualPluginMessageInfo *mess
 
             // Invalidate visual seems to lag a few frames behind, so let's draw as soon as possible
             DrawVisual( visualPluginData );
+
+            // Update FPS overlay if visible
+            if (visualPluginData->showFPS && visualPluginData->subview) {
+                [visualPluginData->subview performSelector:@selector(updateFPSDisplay)];
+            }
 //            InvalidateVisual( visualPluginData );
 			break;
 		}

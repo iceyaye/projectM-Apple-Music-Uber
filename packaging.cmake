@@ -7,9 +7,14 @@ install(TARGETS ProjectM
     COMPONENT MusicPlugin
     )
 
-install(FILES src/Resources/ProjectM-plugin-info.plist
+# Configure Info.plist with version substitution
+configure_file(src/Resources/ProjectM-plugin-info.plist
+    "${CMAKE_BINARY_DIR}/Info.plist"
+    @ONLY
+    )
+
+install(FILES "${CMAKE_BINARY_DIR}/Info.plist"
     DESTINATION "${PROJECTM_PLUGIN_BUNDLE_DIR}/Contents/"
-    RENAME Info.plist
     COMPONENT MusicPlugin
     )
 
@@ -30,6 +35,9 @@ configure_file(install-codesign.cmake.in "${CMAKE_BINARY_DIR}/install-codesign.c
 install(SCRIPT "${CMAKE_BINARY_DIR}/install-codesign.cmake"
     COMPONENT MusicPlugin
     )
+
+# Postinstall script to create uninstaller
+set(CPACK_POSTFLIGHT_MUSICPLUGIN_SCRIPT "${CMAKE_SOURCE_DIR}/src/Resources/postinstall")
 
 # Build PKG installer with CPack
 set(CPACK_GENERATOR "productbuild")
