@@ -116,8 +116,12 @@ While the visualizer is running:
 - `1` / `2` / `3` - Force mesh quality (high/medium/low, disables adaptive)
 
 ## Settings
+![img_2.jpg](img_2.jpg)
 
 Access settings via **View → Visualizer → Options** in the menu bar.
+
+![img_1.jpg](img_1.jpg)
+
 
 **Note:** A song must be playing with the visualizer open for the Options menu item to be enabled.
 
@@ -126,6 +130,7 @@ Available settings:
 - **Shuffle** - Randomize preset order vs sequential playback
 - **Hard Cuts** - Enable sudden beat-triggered preset transitions
 - **Show FPS & Preset Name** - Display overlay with FPS, mesh quality, and current preset name
+- **Lock Current Preset** - Disable auto-advance to stay on the current preset
 - **Mesh Quality** - Auto (adaptive), High, Medium, or Low
 - **Preset Duration** - Time before switching to next preset (5-120s)
 - **Beat Sensitivity** - How reactive to music beats (0.5-5.0)
@@ -146,6 +151,22 @@ Or manually delete:
 rm -rf ~/Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle
 rm -rf /Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle
 ```
+
+## Troubleshooting
+
+### Plugin not showing in Visualizer menu after a crash
+
+If the plugin crashed, Music.app may have blacklisted it. Remove the blacklist file and restart Music:
+
+```bash
+rm ~/Library/iTunes/iTunes\ Plug-ins/DisabledPlugins.plist
+```
+
+Then quit and reopen Music.app.
+
+## TODO
+
+- [ ] **Favorites playlist** - Mark presets as favorites and play from a favorites-only playlist
 
 ## License
 

@@ -61,6 +61,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	NSButton *_shuffleCheckbox;
 	NSButton *_hardCutCheckbox;
 	NSButton *_showFPSCheckbox;
+	NSButton *_lockPresetCheckbox;
 	NSPopUpButton *_meshQualityPopup;
 	NSSlider *_presetDurationSlider;
 	NSSlider *_beatSensitivitySlider;
@@ -74,6 +75,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 + (instancetype)sharedPanel;
 - (void)showWithPluginData:(VisualPluginData *)pluginData;
+- (void)invalidatePluginData;
 
 @end
 
@@ -97,13 +99,14 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 }
 
 - (void)createWindow {
-	NSRect frame = NSMakeRect(0, 0, 340, 430);
+	NSRect frame = NSMakeRect(0, 0, 340, 458);
 	_window = [[NSWindow alloc] initWithContentRect:frame
 										  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
 											backing:NSBackingStoreBuffered
 											  defer:NO];
 	_window.title = @"projectM Settings";
 	_window.delegate = self;
+	_window.releasedWhenClosed = NO;  // Keep window alive after closing
 	[_window center];
 
 	NSView *contentView = _window.contentView;
@@ -145,6 +148,15 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	_showFPSCheckbox.target = self;
 	_showFPSCheckbox.action = @selector(showFPSChanged:);
 	[contentView addSubview:_showFPSCheckbox];
+	y -= 28;
+
+	// Lock Preset checkbox
+	_lockPresetCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(20, y, 300, 20)];
+	_lockPresetCheckbox.buttonType = NSButtonTypeSwitch;
+	_lockPresetCheckbox.title = @"Lock current preset (disable auto-advance)";
+	_lockPresetCheckbox.target = self;
+	_lockPresetCheckbox.action = @selector(lockPresetChanged:);
+	[contentView addSubview:_lockPresetCheckbox];
 	y -= 35;
 
 	// Mesh Quality
@@ -242,53 +254,72 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 - (void)showWithPluginData:(VisualPluginData *)pluginData {
 	_visualPluginData = pluginData;
+
+	// Ensure window is created before loading settings
+	if (_window == nil) {
+		[self createWindow];
+	}
+
 	[self loadSettings];
 	[_window makeKeyAndOrderFront:nil];
 	[NSApp activateIgnoringOtherApps:YES];
 }
 
 - (void)loadSettings {
+	// Guard against UI not being initialized
+	if (_window == nil) {
+		NSLog(@"ProjectM Settings: Window not initialized, skipping loadSettings");
+		return;
+	}
+
 	NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
 	// VSync - default to NO (disabled for performance measurement)
 	BOOL vsync = [defaults objectForKey:kProjectMVSyncEnabled] ? [defaults boolForKey:kProjectMVSyncEnabled] : NO;
-	_vsyncCheckbox.state = vsync ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_vsyncCheckbox) _vsyncCheckbox.state = vsync ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Shuffle - default to YES
 	BOOL shuffle = [defaults objectForKey:kProjectMShuffleEnabled] ? [defaults boolForKey:kProjectMShuffleEnabled] : YES;
-	_shuffleCheckbox.state = shuffle ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_shuffleCheckbox) _shuffleCheckbox.state = shuffle ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Hard cut enabled - default to YES
 	BOOL hardCut = [defaults objectForKey:kProjectMHardCutEnabled] ? [defaults boolForKey:kProjectMHardCutEnabled] : YES;
-	_hardCutCheckbox.state = hardCut ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_hardCutCheckbox) _hardCutCheckbox.state = hardCut ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Show FPS - default to NO
 	BOOL showFPS = [defaults objectForKey:kProjectMShowFPS] ? [defaults boolForKey:kProjectMShowFPS] : NO;
-	_showFPSCheckbox.state = showFPS ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_showFPSCheckbox) _showFPSCheckbox.state = showFPS ? NSControlStateValueOn : NSControlStateValueOff;
+
+	// Lock preset - read current state from projectM (not persisted)
+	BOOL locked = NO;
+	if (_visualPluginData && _visualPluginData->pm) {
+		locked = projectm_get_preset_locked(_visualPluginData->pm);
+	}
+	if (_lockPresetCheckbox) _lockPresetCheckbox.state = locked ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Mesh quality - 0=auto, 1=high, 2=medium, 3=low
 	NSInteger meshQuality = [defaults objectForKey:kProjectMMeshQuality] ? [defaults integerForKey:kProjectMMeshQuality] : 0;
-	[_meshQualityPopup selectItemAtIndex:meshQuality];
+	if (_meshQualityPopup) [_meshQualityPopup selectItemAtIndex:meshQuality];
 
 	// Preset duration - default 30s
 	double duration = [defaults objectForKey:kProjectMPresetDuration] ? [defaults doubleForKey:kProjectMPresetDuration] : 30.0;
-	_presetDurationSlider.doubleValue = duration;
-	_presetDurationLabel.stringValue = [NSString stringWithFormat:@"%.0fs", duration];
+	if (_presetDurationSlider) _presetDurationSlider.doubleValue = duration;
+	if (_presetDurationLabel) _presetDurationLabel.stringValue = [NSString stringWithFormat:@"%.0fs", duration];
 
 	// Beat sensitivity - default 3.0
 	double beatSensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
-	_beatSensitivitySlider.doubleValue = beatSensitivity;
-	_beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", beatSensitivity];
+	if (_beatSensitivitySlider) _beatSensitivitySlider.doubleValue = beatSensitivity;
+	if (_beatSensitivityLabel) _beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", beatSensitivity];
 
 	// Hard cut sensitivity - default 2.0
 	double hardCutSensitivity = [defaults objectForKey:kProjectMHardCutSensitivity] ? [defaults doubleForKey:kProjectMHardCutSensitivity] : 2.0;
-	_hardCutSensitivitySlider.doubleValue = hardCutSensitivity;
-	_hardCutSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", hardCutSensitivity];
+	if (_hardCutSensitivitySlider) _hardCutSensitivitySlider.doubleValue = hardCutSensitivity;
+	if (_hardCutSensitivityLabel) _hardCutSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", hardCutSensitivity];
 
 	// Soft cut duration - default 2.0s
 	double softCutDuration = [defaults objectForKey:kProjectMSoftCutDuration] ? [defaults doubleForKey:kProjectMSoftCutDuration] : 2.0;
-	_softCutDurationSlider.doubleValue = softCutDuration;
-	_softCutDurationLabel.stringValue = [NSString stringWithFormat:@"%.1fs", softCutDuration];
+	if (_softCutDurationSlider) _softCutDurationSlider.doubleValue = softCutDuration;
+	if (_softCutDurationLabel) _softCutDurationLabel.stringValue = [NSString stringWithFormat:@"%.1fs", softCutDuration];
 }
 
 - (void)vsyncChanged:(NSButton *)sender {
@@ -391,8 +422,21 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	}
 }
 
+- (void)lockPresetChanged:(NSButton *)sender {
+	BOOL locked = (sender.state == NSControlStateValueOn);
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		projectm_set_preset_locked(_visualPluginData->pm, locked);
+	}
+}
+
 - (void)windowWillClose:(NSNotification *)notification {
 	[[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (void)invalidatePluginData {
+	_visualPluginData = NULL;
+	[_window close];
 }
 
 @end
@@ -401,6 +445,9 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 void DrawVisual( VisualPluginData * visualPluginData )
 {
+	if (visualPluginData == NULL)
+		return;
+
 	CGPoint where;
 
     VISUAL_PLATFORM_VIEW drawView = visualPluginData->subview;
@@ -490,11 +537,14 @@ void UpdateArtwork( VisualPluginData * visualPluginData, CFDataRef coverArt, UIn
 //
 void InvalidateVisual( VisualPluginData * visualPluginData )
 {
-	(void) visualPluginData;
+	if (visualPluginData == NULL)
+		return;
 
 #if USE_SUBVIEW
 	// when using a custom subview, we invalidate it so we get our own draw calls
-	[visualPluginData->subview setNeedsDisplay:YES];
+	if (visualPluginData->subview != NULL) {
+		[visualPluginData->subview setNeedsDisplay:YES];
+	}
 #endif
 }
 
@@ -578,6 +628,9 @@ OSStatus MoveVisual( VisualPluginData * visualPluginData, OptionBits newOptions 
 //
 OSStatus DeactivateVisual( VisualPluginData * visualPluginData )
 {
+	// Invalidate settings panel reference before cleanup to prevent use-after-free
+	[[ProjectMSettingsPanel sharedPanel] invalidatePluginData];
+
 #if USE_SUBVIEW
 	[visualPluginData->subview removeFromSuperview];
 	[visualPluginData->subview autorelease];
@@ -595,7 +648,7 @@ OSStatus DeactivateVisual( VisualPluginData * visualPluginData )
         projectm_destroy(visualPluginData->pm);
         visualPluginData->pm = NULL;
     }
-	
+
 	return noErr;
 }
 

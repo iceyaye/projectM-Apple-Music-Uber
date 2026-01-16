@@ -225,6 +225,9 @@ void renderProjectMTexture( VisualPluginData * visualPluginData ){
 //
 void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID, const RenderVisualData * renderData )
 {
+	if (visualPluginData == NULL)
+		return;
+
     projectm_handle  pm = visualPluginData->pm;
 
 	visualPluginData->renderTimeStampID	= timeStampID;
@@ -260,6 +263,8 @@ void ProcessRenderData( VisualPluginData * visualPluginData, UInt32 timeStampID,
 //
 void ResetRenderData( VisualPluginData * visualPluginData )
 {
+	if (visualPluginData == NULL)
+		return;
 	memset( &visualPluginData->renderData, 0, sizeof(visualPluginData->renderData) );
 }
 
@@ -269,6 +274,8 @@ void ResetRenderData( VisualPluginData * visualPluginData )
 //
 void UpdateInfoTimeOut( VisualPluginData * visualPluginData )
 {
+	if (visualPluginData == NULL)
+		return;
 	// reset the timeout value we will use to show the info/artwork if we have it during DrawVisual()
 	visualPluginData->drawInfoTimeOut = time( NULL ) + kInfoTimeOutInSeconds;
 }
@@ -279,6 +286,8 @@ void UpdateInfoTimeOut( VisualPluginData * visualPluginData )
 //
 void UpdatePulseRate( VisualPluginData * visualPluginData, UInt32 * ioPulseRate )
 {
+	if (visualPluginData == NULL || ioPulseRate == NULL)
+		return;
 	// vary the pulse rate based on whether or not iTunes is currently playing
 	if ( visualPluginData->playing ) {
 		// Use cached refresh rate (set during activation)
@@ -294,6 +303,8 @@ void UpdatePulseRate( VisualPluginData * visualPluginData, UInt32 * ioPulseRate 
 //
 void UpdateTrackInfo( VisualPluginData * visualPluginData, ITTrackInfo * trackInfo, ITStreamInfo * streamInfo )
 {
+	if (visualPluginData == NULL)
+		return;
 	if ( trackInfo != NULL )
 		visualPluginData->trackInfo = *trackInfo;
 	else
@@ -313,6 +324,8 @@ void UpdateTrackInfo( VisualPluginData * visualPluginData, ITTrackInfo * trackIn
 //
 static void RequestArtwork( VisualPluginData * visualPluginData )
 {
+	if (visualPluginData == NULL)
+		return;
 	// only request artwork if this plugin is active
 	if ( visualPluginData->destView != NULL )
 	{
@@ -328,6 +341,8 @@ static void RequestArtwork( VisualPluginData * visualPluginData )
 //
 void PulseVisual( VisualPluginData * visualPluginData, UInt32 timeStampID, const RenderVisualData * renderData, UInt32 * ioPulseRate )
 {
+	if (visualPluginData == NULL)
+		return;
 	// update internal state
 	ProcessRenderData( visualPluginData, timeStampID, renderData );
 
