@@ -164,6 +164,10 @@ rm ~/Library/iTunes/iTunes\ Plug-ins/DisabledPlugins.plist
 
 Then quit and reopen Music.app.
 
+## TODO
+
+- [ ] **Favorites playlist** - Mark presets as favorites and play from a favorites-only playlist
+
 ## License
 
 LGPL 2.1 - See [LICENSE.md](LICENSE.md)
