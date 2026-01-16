@@ -97,6 +97,25 @@ While the visualizer is running:
 - `0` - Auto mesh quality (adaptive)
 - `1` / `2` / `3` - Force mesh quality (high/medium/low, disables adaptive)
 
+## Settings
+
+Access settings via **View → Visualizer → Options** in the menu bar.
+
+**Note:** A song must be playing with the visualizer open for the Options menu item to be enabled.
+
+Available settings:
+- **VSync** - Enable for smoother playback (caps FPS to display refresh rate)
+- **Shuffle** - Randomize preset order vs sequential playback
+- **Hard Cuts** - Enable sudden beat-triggered preset transitions
+- **Show FPS & Preset Name** - Display overlay with FPS, mesh quality, and current preset name
+- **Mesh Quality** - Auto (adaptive), High, Medium, or Low
+- **Preset Duration** - Time before switching to next preset (5-120s)
+- **Beat Sensitivity** - How reactive to music beats (0.5-5.0)
+- **Hard Cut Sensitivity** - Threshold for beat-triggered cuts (0.5-4.0)
+- **Soft Cut Duration** - Transition blend time between presets (0.5-10s)
+
+Settings are saved automatically and persist across sessions.
+
 ## Uninstalling
 
 If installed via the `.pkg` installer, use the uninstaller at:

@@ -21,6 +21,11 @@ static NSString * const kProjectMVSyncEnabled = @"projectM.vsyncEnabled";
 static NSString * const kProjectMMeshQuality = @"projectM.meshQuality";  // 0=auto, 1=high, 2=medium, 3=low
 static NSString * const kProjectMPresetDuration = @"projectM.presetDuration";
 static NSString * const kProjectMBeatSensitivity = @"projectM.beatSensitivity";
+static NSString * const kProjectMShuffleEnabled = @"projectM.shuffleEnabled";
+static NSString * const kProjectMHardCutEnabled = @"projectM.hardCutEnabled";
+static NSString * const kProjectMHardCutSensitivity = @"projectM.hardCutSensitivity";
+static NSString * const kProjectMSoftCutDuration = @"projectM.softCutDuration";
+static NSString * const kProjectMShowFPS = @"projectM.showFPS";
 
 extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *inMessageInfoPtr, void *refCon ) __attribute__((visibility("default")));
 
@@ -40,6 +45,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 - (void)keyDown:(NSEvent *)theEvent;
 - (void)keyUp:(NSEvent *)theEvent;
 - (void)updateFPSDisplay;
+- (void)setFPSLabelVisible:(NSNumber *)visible;
 
 @end
 
@@ -52,11 +58,18 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	NSWindow *_window;
 	VisualPluginData *_visualPluginData;
 	NSButton *_vsyncCheckbox;
+	NSButton *_shuffleCheckbox;
+	NSButton *_hardCutCheckbox;
+	NSButton *_showFPSCheckbox;
 	NSPopUpButton *_meshQualityPopup;
 	NSSlider *_presetDurationSlider;
 	NSSlider *_beatSensitivitySlider;
+	NSSlider *_hardCutSensitivitySlider;
+	NSSlider *_softCutDurationSlider;
 	NSTextField *_presetDurationLabel;
 	NSTextField *_beatSensitivityLabel;
+	NSTextField *_hardCutSensitivityLabel;
+	NSTextField *_softCutDurationLabel;
 }
 
 + (instancetype)sharedPanel;
@@ -84,7 +97,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 }
 
 - (void)createWindow {
-	NSRect frame = NSMakeRect(0, 0, 340, 260);
+	NSRect frame = NSMakeRect(0, 0, 340, 430);
 	_window = [[NSWindow alloc] initWithContentRect:frame
 										  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
 											backing:NSBackingStoreBuffered
@@ -95,8 +108,8 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 	NSView *contentView = _window.contentView;
 	CGFloat y = frame.size.height - 40;
-	CGFloat labelWidth = 120;
-	CGFloat controlX = 130;
+	CGFloat labelWidth = 130;
+	CGFloat controlX = 140;
 
 	// VSync checkbox
 	_vsyncCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(20, y, 300, 20)];
@@ -105,6 +118,33 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	_vsyncCheckbox.target = self;
 	_vsyncCheckbox.action = @selector(vsyncChanged:);
 	[contentView addSubview:_vsyncCheckbox];
+	y -= 28;
+
+	// Shuffle checkbox
+	_shuffleCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(20, y, 300, 20)];
+	_shuffleCheckbox.buttonType = NSButtonTypeSwitch;
+	_shuffleCheckbox.title = @"Shuffle presets";
+	_shuffleCheckbox.target = self;
+	_shuffleCheckbox.action = @selector(shuffleChanged:);
+	[contentView addSubview:_shuffleCheckbox];
+	y -= 28;
+
+	// Hard Cut checkbox
+	_hardCutCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(20, y, 300, 20)];
+	_hardCutCheckbox.buttonType = NSButtonTypeSwitch;
+	_hardCutCheckbox.title = @"Enable hard cuts (beat-triggered)";
+	_hardCutCheckbox.target = self;
+	_hardCutCheckbox.action = @selector(hardCutEnabledChanged:);
+	[contentView addSubview:_hardCutCheckbox];
+	y -= 28;
+
+	// Show FPS checkbox
+	_showFPSCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(20, y, 300, 20)];
+	_showFPSCheckbox.buttonType = NSButtonTypeSwitch;
+	_showFPSCheckbox.title = @"Show FPS & preset name overlay";
+	_showFPSCheckbox.target = self;
+	_showFPSCheckbox.action = @selector(showFPSChanged:);
+	[contentView addSubview:_showFPSCheckbox];
 	y -= 35;
 
 	// Mesh Quality
@@ -112,19 +152,19 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	meshLabel.frame = NSMakeRect(20, y, labelWidth, 20);
 	[contentView addSubview:meshLabel];
 
-	_meshQualityPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(controlX, y - 2, 180, 26) pullsDown:NO];
+	_meshQualityPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(controlX, y - 2, 170, 26) pullsDown:NO];
 	[_meshQualityPopup addItemsWithTitles:@[@"Auto (Adaptive)", @"High (140×110)", @"Medium (96×72)", @"Low (64×48)"]];
 	_meshQualityPopup.target = self;
 	_meshQualityPopup.action = @selector(meshQualityChanged:);
 	[contentView addSubview:_meshQualityPopup];
-	y -= 40;
+	y -= 35;
 
 	// Preset Duration
 	NSTextField *durationLabel = [NSTextField labelWithString:@"Preset Duration:"];
 	durationLabel.frame = NSMakeRect(20, y, labelWidth, 20);
 	[contentView addSubview:durationLabel];
 
-	_presetDurationSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 140, 20)];
+	_presetDurationSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 130, 20)];
 	_presetDurationSlider.minValue = 5;
 	_presetDurationSlider.maxValue = 120;
 	_presetDurationSlider.target = self;
@@ -134,14 +174,14 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	_presetDurationLabel = [NSTextField labelWithString:@"30s"];
 	_presetDurationLabel.frame = NSMakeRect(280, y, 40, 20);
 	[contentView addSubview:_presetDurationLabel];
-	y -= 40;
+	y -= 35;
 
 	// Beat Sensitivity
 	NSTextField *beatLabel = [NSTextField labelWithString:@"Beat Sensitivity:"];
 	beatLabel.frame = NSMakeRect(20, y, labelWidth, 20);
 	[contentView addSubview:beatLabel];
 
-	_beatSensitivitySlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 140, 20)];
+	_beatSensitivitySlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 130, 20)];
 	_beatSensitivitySlider.minValue = 0.5;
 	_beatSensitivitySlider.maxValue = 5.0;
 	_beatSensitivitySlider.target = self;
@@ -151,7 +191,41 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	_beatSensitivityLabel = [NSTextField labelWithString:@"3.0"];
 	_beatSensitivityLabel.frame = NSMakeRect(280, y, 40, 20);
 	[contentView addSubview:_beatSensitivityLabel];
-	y -= 50;
+	y -= 35;
+
+	// Hard Cut Sensitivity
+	NSTextField *hardCutLabel = [NSTextField labelWithString:@"Hard Cut Sensitivity:"];
+	hardCutLabel.frame = NSMakeRect(20, y, labelWidth, 20);
+	[contentView addSubview:hardCutLabel];
+
+	_hardCutSensitivitySlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 130, 20)];
+	_hardCutSensitivitySlider.minValue = 0.5;
+	_hardCutSensitivitySlider.maxValue = 4.0;
+	_hardCutSensitivitySlider.target = self;
+	_hardCutSensitivitySlider.action = @selector(hardCutSensitivityChanged:);
+	[contentView addSubview:_hardCutSensitivitySlider];
+
+	_hardCutSensitivityLabel = [NSTextField labelWithString:@"2.0"];
+	_hardCutSensitivityLabel.frame = NSMakeRect(280, y, 40, 20);
+	[contentView addSubview:_hardCutSensitivityLabel];
+	y -= 35;
+
+	// Soft Cut Duration
+	NSTextField *softCutLabel = [NSTextField labelWithString:@"Soft Cut Duration:"];
+	softCutLabel.frame = NSMakeRect(20, y, labelWidth, 20);
+	[contentView addSubview:softCutLabel];
+
+	_softCutDurationSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 130, 20)];
+	_softCutDurationSlider.minValue = 0.5;
+	_softCutDurationSlider.maxValue = 10.0;
+	_softCutDurationSlider.target = self;
+	_softCutDurationSlider.action = @selector(softCutDurationChanged:);
+	[contentView addSubview:_softCutDurationSlider];
+
+	_softCutDurationLabel = [NSTextField labelWithString:@"2.0s"];
+	_softCutDurationLabel.frame = NSMakeRect(280, y, 40, 20);
+	[contentView addSubview:_softCutDurationLabel];
+	y -= 40;
 
 	// Keyboard shortcuts info
 	NSTextField *shortcutsTitle = [NSTextField labelWithString:@"Keyboard Shortcuts:"];
@@ -180,6 +254,18 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	BOOL vsync = [defaults objectForKey:kProjectMVSyncEnabled] ? [defaults boolForKey:kProjectMVSyncEnabled] : NO;
 	_vsyncCheckbox.state = vsync ? NSControlStateValueOn : NSControlStateValueOff;
 
+	// Shuffle - default to YES
+	BOOL shuffle = [defaults objectForKey:kProjectMShuffleEnabled] ? [defaults boolForKey:kProjectMShuffleEnabled] : YES;
+	_shuffleCheckbox.state = shuffle ? NSControlStateValueOn : NSControlStateValueOff;
+
+	// Hard cut enabled - default to YES
+	BOOL hardCut = [defaults objectForKey:kProjectMHardCutEnabled] ? [defaults boolForKey:kProjectMHardCutEnabled] : YES;
+	_hardCutCheckbox.state = hardCut ? NSControlStateValueOn : NSControlStateValueOff;
+
+	// Show FPS - default to NO
+	BOOL showFPS = [defaults objectForKey:kProjectMShowFPS] ? [defaults boolForKey:kProjectMShowFPS] : NO;
+	_showFPSCheckbox.state = showFPS ? NSControlStateValueOn : NSControlStateValueOff;
+
 	// Mesh quality - 0=auto, 1=high, 2=medium, 3=low
 	NSInteger meshQuality = [defaults objectForKey:kProjectMMeshQuality] ? [defaults integerForKey:kProjectMMeshQuality] : 0;
 	[_meshQualityPopup selectItemAtIndex:meshQuality];
@@ -190,9 +276,19 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	_presetDurationLabel.stringValue = [NSString stringWithFormat:@"%.0fs", duration];
 
 	// Beat sensitivity - default 3.0
-	double sensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
-	_beatSensitivitySlider.doubleValue = sensitivity;
-	_beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", sensitivity];
+	double beatSensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
+	_beatSensitivitySlider.doubleValue = beatSensitivity;
+	_beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", beatSensitivity];
+
+	// Hard cut sensitivity - default 2.0
+	double hardCutSensitivity = [defaults objectForKey:kProjectMHardCutSensitivity] ? [defaults doubleForKey:kProjectMHardCutSensitivity] : 2.0;
+	_hardCutSensitivitySlider.doubleValue = hardCutSensitivity;
+	_hardCutSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", hardCutSensitivity];
+
+	// Soft cut duration - default 2.0s
+	double softCutDuration = [defaults objectForKey:kProjectMSoftCutDuration] ? [defaults doubleForKey:kProjectMSoftCutDuration] : 2.0;
+	_softCutDurationSlider.doubleValue = softCutDuration;
+	_softCutDurationLabel.stringValue = [NSString stringWithFormat:@"%.1fs", softCutDuration];
 }
 
 - (void)vsyncChanged:(NSButton *)sender {
@@ -241,6 +337,57 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 	if (_visualPluginData && _visualPluginData->pm) {
 		projectm_set_beat_sensitivity(_visualPluginData->pm, (float)sensitivity);
+	}
+}
+
+- (void)shuffleChanged:(NSButton *)sender {
+	BOOL enabled = (sender.state == NSControlStateValueOn);
+	[[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kProjectMShuffleEnabled];
+
+	if (_visualPluginData && _visualPluginData->playlist) {
+		projectm_playlist_set_shuffle(_visualPluginData->playlist, enabled);
+	}
+}
+
+- (void)hardCutEnabledChanged:(NSButton *)sender {
+	BOOL enabled = (sender.state == NSControlStateValueOn);
+	[[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kProjectMHardCutEnabled];
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		projectm_set_hard_cut_enabled(_visualPluginData->pm, enabled);
+	}
+}
+
+- (void)hardCutSensitivityChanged:(NSSlider *)sender {
+	double sensitivity = sender.doubleValue;
+	_hardCutSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", sensitivity];
+	[[NSUserDefaults standardUserDefaults] setDouble:sensitivity forKey:kProjectMHardCutSensitivity];
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		projectm_set_hard_cut_sensitivity(_visualPluginData->pm, (float)sensitivity);
+	}
+}
+
+- (void)softCutDurationChanged:(NSSlider *)sender {
+	double duration = sender.doubleValue;
+	_softCutDurationLabel.stringValue = [NSString stringWithFormat:@"%.1fs", duration];
+	[[NSUserDefaults standardUserDefaults] setDouble:duration forKey:kProjectMSoftCutDuration];
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		projectm_set_soft_cut_duration(_visualPluginData->pm, duration);
+	}
+}
+
+- (void)showFPSChanged:(NSButton *)sender {
+	BOOL enabled = (sender.state == NSControlStateValueOn);
+	[[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kProjectMShowFPS];
+
+	if (_visualPluginData) {
+		_visualPluginData->showFPS = enabled;
+		if (_visualPluginData->subview) {
+			// Update visibility immediately
+			[_visualPluginData->subview performSelector:@selector(setFPSLabelVisible:) withObject:@(enabled)];
+		}
 	}
 }
 
@@ -488,6 +635,14 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
 
 @synthesize visualPluginData = _visualPluginData;
 
+- (void)setVisualPluginData:(VisualPluginData *)visualPluginData {
+    _visualPluginData = visualPluginData;
+    // Sync FPS label visibility with saved setting
+    if (visualPluginData) {
+        _fpsLabel.hidden = !visualPluginData->showFPS;
+    }
+}
+
 - (id)initWithFrame:(NSRect)frame
 {
     NSLog(@"initWithFrame called");
@@ -522,7 +677,8 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
 
     // Create FPS overlay label (hidden by default)
     // Use layer-backed view to render on top of OpenGL content
-    _fpsLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(10, frame.size.height - 30, 200, 20)];
+    // Wide enough to show preset name
+    _fpsLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(10, frame.size.height - 30, frame.size.width - 20, 20)];
     _fpsLabel.bezeled = NO;
     _fpsLabel.editable = NO;
     _fpsLabel.selectable = NO;
@@ -530,7 +686,7 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
     _fpsLabel.backgroundColor = [NSColor colorWithWhite:0.0 alpha:0.6];
     _fpsLabel.textColor = [NSColor whiteColor];
     _fpsLabel.font = [NSFont monospacedSystemFontOfSize:12 weight:NSFontWeightMedium];
-    _fpsLabel.autoresizingMask = NSViewMinYMargin;  // Keep at top when resizing
+    _fpsLabel.autoresizingMask = NSViewMinYMargin | NSViewWidthSizable;  // Keep at top, resize width
     _fpsLabel.wantsLayer = YES;
     _fpsLabel.hidden = YES;
     [self addSubview:_fpsLabel positioned:NSWindowAbove relativeTo:nil];
@@ -680,7 +836,29 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
     int meshLevel = _visualPluginData->meshQualityLevel;
     NSString *qualityStr = (meshLevel == 0) ? @"High" : (meshLevel == 1) ? @"Med" : @"Low";
     NSString *modeStr = _visualPluginData->adaptiveMeshEnabled ? @"Auto" : @"Locked";
-    [_fpsLabel setStringValue:[NSString stringWithFormat:@"%.1f FPS | %@: %@", fps, modeStr, qualityStr]];
+
+    // Get current preset name
+    NSString *presetName = @"";
+    if (_visualPluginData->playlist) {
+        uint32_t pos = projectm_playlist_get_position(_visualPluginData->playlist);
+        char *filename = projectm_playlist_item(_visualPluginData->playlist, pos);
+        if (filename) {
+            // Extract just the filename without path and extension
+            NSString *fullPath = [NSString stringWithUTF8String:filename];
+            presetName = [[fullPath lastPathComponent] stringByDeletingPathExtension];
+            projectm_playlist_free_string(filename);
+        }
+    }
+
+    [_fpsLabel setStringValue:[NSString stringWithFormat:@"%.1f FPS | %@: %@ | %@", fps, modeStr, qualityStr, presetName]];
+}
+
+- (void)setFPSLabelVisible:(NSNumber *)visible {
+    BOOL show = [visible boolValue];
+    _fpsLabel.hidden = !show;
+    if (show) {
+        [self updateFPSDisplay];
+    }
 }
 
 @end

@@ -10,6 +10,11 @@
 static NSString * const kProjectMMeshQuality = @"projectM.meshQuality";
 static NSString * const kProjectMPresetDuration = @"projectM.presetDuration";
 static NSString * const kProjectMBeatSensitivity = @"projectM.beatSensitivity";
+static NSString * const kProjectMShuffleEnabled = @"projectM.shuffleEnabled";
+static NSString * const kProjectMHardCutEnabled = @"projectM.hardCutEnabled";
+static NSString * const kProjectMHardCutSensitivity = @"projectM.hardCutSensitivity";
+static NSString * const kProjectMSoftCutDuration = @"projectM.softCutDuration";
+static NSString * const kProjectMShowFPS = @"projectM.showFPS";
 
 // projectM
 void initProjectM( VisualPluginData * visualPluginData, std::string presetPath ) {
@@ -52,7 +57,6 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
     projectm_set_fps(pm, refreshRate);
     NSLog(@"Display refresh rate: %u Hz", refreshRate);
 
-    projectm_set_soft_cut_duration(pm, 2.0);
     projectm_set_aspect_correction(pm, true);
     projectm_set_easter_egg(pm, 0.0f);
 
@@ -63,6 +67,17 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
     // Load beat sensitivity (default 3.0)
     double beatSensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
     projectm_set_beat_sensitivity(pm, (float)beatSensitivity);
+
+    // Load hard cut settings (default: enabled, sensitivity 2.0)
+    BOOL hardCutEnabled = [defaults objectForKey:kProjectMHardCutEnabled] ? [defaults boolForKey:kProjectMHardCutEnabled] : YES;
+    projectm_set_hard_cut_enabled(pm, hardCutEnabled);
+
+    double hardCutSensitivity = [defaults objectForKey:kProjectMHardCutSensitivity] ? [defaults doubleForKey:kProjectMHardCutSensitivity] : 2.0;
+    projectm_set_hard_cut_sensitivity(pm, (float)hardCutSensitivity);
+
+    // Load soft cut duration (default 2.0s)
+    double softCutDuration = [defaults objectForKey:kProjectMSoftCutDuration] ? [defaults doubleForKey:kProjectMSoftCutDuration] : 2.0;
+    projectm_set_soft_cut_duration(pm, softCutDuration);
 
     // Set texture search paths
     const char* texturePaths[] = { presetPath.c_str() };
@@ -78,7 +93,11 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
     projectm_playlist_handle playlist = projectm_playlist_create(pm);
     if (playlist != nullptr) {
         projectm_playlist_add_path(playlist, presetPath.c_str(), true, false);
-        projectm_playlist_set_shuffle(playlist, true);
+
+        // Load shuffle setting (default: enabled)
+        BOOL shuffleEnabled = [defaults objectForKey:kProjectMShuffleEnabled] ? [defaults boolForKey:kProjectMShuffleEnabled] : YES;
+        projectm_playlist_set_shuffle(playlist, shuffleEnabled);
+
         visualPluginData->playlist = playlist;
 
         // Start playing first preset
@@ -89,6 +108,9 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
     } else {
         NSLog(@"Failed to create playlist");
     }
+
+    // Load showFPS setting (default: disabled)
+    visualPluginData->showFPS = [defaults objectForKey:kProjectMShowFPS] ? [defaults boolForKey:kProjectMShowFPS] : NO;
 }
 
 // Keyboard handling removed in projectM 4.x API
