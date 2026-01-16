@@ -116,8 +116,12 @@ While the visualizer is running:
 - `1` / `2` / `3` - Force mesh quality (high/medium/low, disables adaptive)
 
 ## Settings
+![img_2.jpg](img_2.jpg)
 
 Access settings via **View → Visualizer → Options** in the menu bar.
+
+![img_1.jpg](img_1.jpg)
+
 
 **Note:** A song must be playing with the visualizer open for the Options menu item to be enabled.
 
