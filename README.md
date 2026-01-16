@@ -126,6 +126,7 @@ Available settings:
 - **Shuffle** - Randomize preset order vs sequential playback
 - **Hard Cuts** - Enable sudden beat-triggered preset transitions
 - **Show FPS & Preset Name** - Display overlay with FPS, mesh quality, and current preset name
+- **Lock Current Preset** - Disable auto-advance to stay on the current preset
 - **Mesh Quality** - Auto (adaptive), High, Medium, or Low
 - **Preset Duration** - Time before switching to next preset (5-120s)
 - **Beat Sensitivity** - How reactive to music beats (0.5-5.0)

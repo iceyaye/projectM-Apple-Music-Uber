@@ -61,6 +61,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	NSButton *_shuffleCheckbox;
 	NSButton *_hardCutCheckbox;
 	NSButton *_showFPSCheckbox;
+	NSButton *_lockPresetCheckbox;
 	NSPopUpButton *_meshQualityPopup;
 	NSSlider *_presetDurationSlider;
 	NSSlider *_beatSensitivitySlider;
@@ -74,6 +75,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 + (instancetype)sharedPanel;
 - (void)showWithPluginData:(VisualPluginData *)pluginData;
+- (void)invalidatePluginData;
 
 @end
 
@@ -97,7 +99,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 }
 
 - (void)createWindow {
-	NSRect frame = NSMakeRect(0, 0, 340, 430);
+	NSRect frame = NSMakeRect(0, 0, 340, 458);
 	_window = [[NSWindow alloc] initWithContentRect:frame
 										  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
 											backing:NSBackingStoreBuffered
@@ -146,6 +148,15 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	_showFPSCheckbox.target = self;
 	_showFPSCheckbox.action = @selector(showFPSChanged:);
 	[contentView addSubview:_showFPSCheckbox];
+	y -= 28;
+
+	// Lock Preset checkbox
+	_lockPresetCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(20, y, 300, 20)];
+	_lockPresetCheckbox.buttonType = NSButtonTypeSwitch;
+	_lockPresetCheckbox.title = @"Lock current preset (disable auto-advance)";
+	_lockPresetCheckbox.target = self;
+	_lockPresetCheckbox.action = @selector(lockPresetChanged:);
+	[contentView addSubview:_lockPresetCheckbox];
 	y -= 35;
 
 	// Mesh Quality
@@ -279,6 +290,13 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	BOOL showFPS = [defaults objectForKey:kProjectMShowFPS] ? [defaults boolForKey:kProjectMShowFPS] : NO;
 	if (_showFPSCheckbox) _showFPSCheckbox.state = showFPS ? NSControlStateValueOn : NSControlStateValueOff;
 
+	// Lock preset - read current state from projectM (not persisted)
+	BOOL locked = NO;
+	if (_visualPluginData && _visualPluginData->pm) {
+		locked = projectm_get_preset_locked(_visualPluginData->pm);
+	}
+	if (_lockPresetCheckbox) _lockPresetCheckbox.state = locked ? NSControlStateValueOn : NSControlStateValueOff;
+
 	// Mesh quality - 0=auto, 1=high, 2=medium, 3=low
 	NSInteger meshQuality = [defaults objectForKey:kProjectMMeshQuality] ? [defaults integerForKey:kProjectMMeshQuality] : 0;
 	if (_meshQualityPopup) [_meshQualityPopup selectItemAtIndex:meshQuality];
@@ -404,8 +422,21 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 	}
 }
 
+- (void)lockPresetChanged:(NSButton *)sender {
+	BOOL locked = (sender.state == NSControlStateValueOn);
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		projectm_set_preset_locked(_visualPluginData->pm, locked);
+	}
+}
+
 - (void)windowWillClose:(NSNotification *)notification {
 	[[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+- (void)invalidatePluginData {
+	_visualPluginData = NULL;
+	[_window close];
 }
 
 @end
@@ -414,6 +445,9 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 void DrawVisual( VisualPluginData * visualPluginData )
 {
+	if (visualPluginData == NULL)
+		return;
+
 	CGPoint where;
 
     VISUAL_PLATFORM_VIEW drawView = visualPluginData->subview;
@@ -503,11 +537,14 @@ void UpdateArtwork( VisualPluginData * visualPluginData, CFDataRef coverArt, UIn
 //
 void InvalidateVisual( VisualPluginData * visualPluginData )
 {
-	(void) visualPluginData;
+	if (visualPluginData == NULL)
+		return;
 
 #if USE_SUBVIEW
 	// when using a custom subview, we invalidate it so we get our own draw calls
-	[visualPluginData->subview setNeedsDisplay:YES];
+	if (visualPluginData->subview != NULL) {
+		[visualPluginData->subview setNeedsDisplay:YES];
+	}
 #endif
 }
 
@@ -591,6 +628,9 @@ OSStatus MoveVisual( VisualPluginData * visualPluginData, OptionBits newOptions 
 //
 OSStatus DeactivateVisual( VisualPluginData * visualPluginData )
 {
+	// Invalidate settings panel reference before cleanup to prevent use-after-free
+	[[ProjectMSettingsPanel sharedPanel] invalidatePluginData];
+
 #if USE_SUBVIEW
 	[visualPluginData->subview removeFromSuperview];
 	[visualPluginData->subview autorelease];
@@ -608,7 +648,7 @@ OSStatus DeactivateVisual( VisualPluginData * visualPluginData )
         projectm_destroy(visualPluginData->pm);
         visualPluginData->pm = NULL;
     }
-	
+
 	return noErr;
 }
 
