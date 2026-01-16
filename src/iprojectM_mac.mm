@@ -11,9 +11,16 @@
 #import <AppKit/AppKit.h>
 #import <Carbon/Carbon.h>
 #import <OpenGL/gl3.h>
+#import <QuartzCore/CABase.h>
 #import <string.h>
 
 #define kTVisualPluginName CFSTR("projectM")
+
+// NSUserDefaults keys for settings persistence
+static NSString * const kProjectMVSyncEnabled = @"projectM.vsyncEnabled";
+static NSString * const kProjectMMeshQuality = @"projectM.meshQuality";  // 0=auto, 1=high, 2=medium, 3=low
+static NSString * const kProjectMPresetDuration = @"projectM.presetDuration";
+static NSString * const kProjectMBeatSensitivity = @"projectM.beatSensitivity";
 
 extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *inMessageInfoPtr, void *refCon ) __attribute__((visibility("default")));
 
@@ -21,6 +28,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 @interface VisualView : NSOpenGLView
 {
 	VisualPluginData *	_visualPluginData;
+	NSTextField *		_fpsLabel;
 }
 
 @property (nonatomic, assign) VisualPluginData * visualPluginData;
@@ -31,10 +39,218 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 - (BOOL)resignFirstResponder;
 - (void)keyDown:(NSEvent *)theEvent;
 - (void)keyUp:(NSEvent *)theEvent;
+- (void)updateFPSDisplay;
 
 @end
 
 #endif	// USE_SUBVIEW
+
+#pragma mark - Settings Panel
+
+@interface ProjectMSettingsPanel : NSObject <NSWindowDelegate>
+{
+	NSWindow *_window;
+	VisualPluginData *_visualPluginData;
+	NSButton *_vsyncCheckbox;
+	NSPopUpButton *_meshQualityPopup;
+	NSSlider *_presetDurationSlider;
+	NSSlider *_beatSensitivitySlider;
+	NSTextField *_presetDurationLabel;
+	NSTextField *_beatSensitivityLabel;
+}
+
++ (instancetype)sharedPanel;
+- (void)showWithPluginData:(VisualPluginData *)pluginData;
+
+@end
+
+@implementation ProjectMSettingsPanel
+
++ (instancetype)sharedPanel {
+	static ProjectMSettingsPanel *sharedInstance = nil;
+	static dispatch_once_t onceToken;
+	dispatch_once(&onceToken, ^{
+		sharedInstance = [[ProjectMSettingsPanel alloc] init];
+	});
+	return sharedInstance;
+}
+
+- (instancetype)init {
+	self = [super init];
+	if (self) {
+		[self createWindow];
+	}
+	return self;
+}
+
+- (void)createWindow {
+	NSRect frame = NSMakeRect(0, 0, 340, 260);
+	_window = [[NSWindow alloc] initWithContentRect:frame
+										  styleMask:(NSWindowStyleMaskTitled | NSWindowStyleMaskClosable)
+											backing:NSBackingStoreBuffered
+											  defer:NO];
+	_window.title = @"projectM Settings";
+	_window.delegate = self;
+	[_window center];
+
+	NSView *contentView = _window.contentView;
+	CGFloat y = frame.size.height - 40;
+	CGFloat labelWidth = 120;
+	CGFloat controlX = 130;
+
+	// VSync checkbox
+	_vsyncCheckbox = [[NSButton alloc] initWithFrame:NSMakeRect(20, y, 300, 20)];
+	_vsyncCheckbox.buttonType = NSButtonTypeSwitch;
+	_vsyncCheckbox.title = @"Enable VSync (smoother, caps FPS)";
+	_vsyncCheckbox.target = self;
+	_vsyncCheckbox.action = @selector(vsyncChanged:);
+	[contentView addSubview:_vsyncCheckbox];
+	y -= 35;
+
+	// Mesh Quality
+	NSTextField *meshLabel = [NSTextField labelWithString:@"Mesh Quality:"];
+	meshLabel.frame = NSMakeRect(20, y, labelWidth, 20);
+	[contentView addSubview:meshLabel];
+
+	_meshQualityPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(controlX, y - 2, 180, 26) pullsDown:NO];
+	[_meshQualityPopup addItemsWithTitles:@[@"Auto (Adaptive)", @"High (140×110)", @"Medium (96×72)", @"Low (64×48)"]];
+	_meshQualityPopup.target = self;
+	_meshQualityPopup.action = @selector(meshQualityChanged:);
+	[contentView addSubview:_meshQualityPopup];
+	y -= 40;
+
+	// Preset Duration
+	NSTextField *durationLabel = [NSTextField labelWithString:@"Preset Duration:"];
+	durationLabel.frame = NSMakeRect(20, y, labelWidth, 20);
+	[contentView addSubview:durationLabel];
+
+	_presetDurationSlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 140, 20)];
+	_presetDurationSlider.minValue = 5;
+	_presetDurationSlider.maxValue = 120;
+	_presetDurationSlider.target = self;
+	_presetDurationSlider.action = @selector(presetDurationChanged:);
+	[contentView addSubview:_presetDurationSlider];
+
+	_presetDurationLabel = [NSTextField labelWithString:@"30s"];
+	_presetDurationLabel.frame = NSMakeRect(280, y, 40, 20);
+	[contentView addSubview:_presetDurationLabel];
+	y -= 40;
+
+	// Beat Sensitivity
+	NSTextField *beatLabel = [NSTextField labelWithString:@"Beat Sensitivity:"];
+	beatLabel.frame = NSMakeRect(20, y, labelWidth, 20);
+	[contentView addSubview:beatLabel];
+
+	_beatSensitivitySlider = [[NSSlider alloc] initWithFrame:NSMakeRect(controlX, y, 140, 20)];
+	_beatSensitivitySlider.minValue = 0.5;
+	_beatSensitivitySlider.maxValue = 5.0;
+	_beatSensitivitySlider.target = self;
+	_beatSensitivitySlider.action = @selector(beatSensitivityChanged:);
+	[contentView addSubview:_beatSensitivitySlider];
+
+	_beatSensitivityLabel = [NSTextField labelWithString:@"3.0"];
+	_beatSensitivityLabel.frame = NSMakeRect(280, y, 40, 20);
+	[contentView addSubview:_beatSensitivityLabel];
+	y -= 50;
+
+	// Keyboard shortcuts info
+	NSTextField *shortcutsTitle = [NSTextField labelWithString:@"Keyboard Shortcuts:"];
+	shortcutsTitle.font = [NSFont boldSystemFontOfSize:11];
+	shortcutsTitle.frame = NSMakeRect(20, y, 300, 16);
+	[contentView addSubview:shortcutsTitle];
+	y -= 18;
+
+	NSTextField *shortcutsText = [NSTextField labelWithString:@"n/p: Next/Prev preset  r: Random  l: Lock\nf: Toggle FPS  0: Auto mesh  1/2/3: Force quality"];
+	shortcutsText.font = [NSFont systemFontOfSize:10];
+	shortcutsText.frame = NSMakeRect(20, y - 16, 300, 32);
+	[contentView addSubview:shortcutsText];
+}
+
+- (void)showWithPluginData:(VisualPluginData *)pluginData {
+	_visualPluginData = pluginData;
+	[self loadSettings];
+	[_window makeKeyAndOrderFront:nil];
+	[NSApp activateIgnoringOtherApps:YES];
+}
+
+- (void)loadSettings {
+	NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+
+	// VSync - default to NO (disabled for performance measurement)
+	BOOL vsync = [defaults objectForKey:kProjectMVSyncEnabled] ? [defaults boolForKey:kProjectMVSyncEnabled] : NO;
+	_vsyncCheckbox.state = vsync ? NSControlStateValueOn : NSControlStateValueOff;
+
+	// Mesh quality - 0=auto, 1=high, 2=medium, 3=low
+	NSInteger meshQuality = [defaults objectForKey:kProjectMMeshQuality] ? [defaults integerForKey:kProjectMMeshQuality] : 0;
+	[_meshQualityPopup selectItemAtIndex:meshQuality];
+
+	// Preset duration - default 30s
+	double duration = [defaults objectForKey:kProjectMPresetDuration] ? [defaults doubleForKey:kProjectMPresetDuration] : 30.0;
+	_presetDurationSlider.doubleValue = duration;
+	_presetDurationLabel.stringValue = [NSString stringWithFormat:@"%.0fs", duration];
+
+	// Beat sensitivity - default 3.0
+	double sensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
+	_beatSensitivitySlider.doubleValue = sensitivity;
+	_beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", sensitivity];
+}
+
+- (void)vsyncChanged:(NSButton *)sender {
+	BOOL enabled = (sender.state == NSControlStateValueOn);
+	[[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kProjectMVSyncEnabled];
+
+	// Apply immediately if we have an OpenGL context
+	if (_visualPluginData && _visualPluginData->subview) {
+		GLint swapInterval = enabled ? 1 : 0;
+		[[_visualPluginData->subview openGLContext] setValues:&swapInterval forParameter:NSOpenGLCPSwapInterval];
+	}
+}
+
+- (void)meshQualityChanged:(NSPopUpButton *)sender {
+	NSInteger selection = sender.indexOfSelectedItem;
+	[[NSUserDefaults standardUserDefaults] setInteger:selection forKey:kProjectMMeshQuality];
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		if (selection == 0) {
+			// Auto/Adaptive
+			_visualPluginData->adaptiveMeshEnabled = true;
+		} else {
+			// Manual: 1=high(0), 2=medium(1), 3=low(2)
+			int level = (int)(selection - 1);
+			_visualPluginData->adaptiveMeshEnabled = false;
+			_visualPluginData->meshQualityLevel = level;
+			projectm_set_mesh_size(_visualPluginData->pm, kMeshSizes[level][0], kMeshSizes[level][1]);
+		}
+	}
+}
+
+- (void)presetDurationChanged:(NSSlider *)sender {
+	double duration = sender.doubleValue;
+	_presetDurationLabel.stringValue = [NSString stringWithFormat:@"%.0fs", duration];
+	[[NSUserDefaults standardUserDefaults] setDouble:duration forKey:kProjectMPresetDuration];
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		projectm_set_preset_duration(_visualPluginData->pm, duration);
+	}
+}
+
+- (void)beatSensitivityChanged:(NSSlider *)sender {
+	double sensitivity = sender.doubleValue;
+	_beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", sensitivity];
+	[[NSUserDefaults standardUserDefaults] setDouble:sensitivity forKey:kProjectMBeatSensitivity];
+
+	if (_visualPluginData && _visualPluginData->pm) {
+		projectm_set_beat_sensitivity(_visualPluginData->pm, (float)sensitivity);
+	}
+}
+
+- (void)windowWillClose:(NSNotification *)notification {
+	[[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+@end
+
+#pragma mark -
 
 void DrawVisual( VisualPluginData * visualPluginData )
 {
@@ -43,10 +259,22 @@ void DrawVisual( VisualPluginData * visualPluginData )
     VISUAL_PLATFORM_VIEW drawView = visualPluginData->subview;
     if (!visualPluginData->readyToDraw)
         return;
-    
+
+    // Measure actual FPS
+    double currentTime = CACurrentMediaTime();
+    if (visualPluginData->lastFrameTime > 0) {
+        double deltaTime = currentTime - visualPluginData->lastFrameTime;
+        if (deltaTime > 0) {
+            double instantFPS = 1.0 / deltaTime;
+            // Smooth with exponential moving average (0.1 = responsive, 0.01 = smooth)
+            visualPluginData->measuredFPS = visualPluginData->measuredFPS * 0.9 + instantFPS * 0.1;
+        }
+    }
+    visualPluginData->lastFrameTime = currentTime;
+
 	glClearColor( 0.0, 0.0, 0.0, 0.0 );
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    
+
     // render
     projectm_opengl_render_frame(visualPluginData->pm);
 
@@ -248,13 +476,7 @@ OSStatus ResizeVisual( VisualPluginData * visualPluginData )
 //
 OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
 {
-	(void) visualPluginData;
-
-	// load nib
-	// show modal dialog
-	// update settings
-	// invalidate
-
+	[[ProjectMSettingsPanel sharedPanel] showWithPluginData:visualPluginData];
 	return noErr;
 }
 
@@ -289,9 +511,29 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
         return self;
     }
 
-    // Enable VSync to avoid rendering more frames than the display can show
-    GLint swapInterval = 1;
+    // Load VSync setting from preferences (default: disabled for performance measurement)
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    BOOL vsyncEnabled = [defaults objectForKey:kProjectMVSyncEnabled] ? [defaults boolForKey:kProjectMVSyncEnabled] : NO;
+    GLint swapInterval = vsyncEnabled ? 1 : 0;
     [[self openGLContext] setValues:&swapInterval forParameter:NSOpenGLCPSwapInterval];
+
+    // Enable layer backing so subviews render on top of OpenGL content
+    [self setWantsLayer:YES];
+
+    // Create FPS overlay label (hidden by default)
+    // Use layer-backed view to render on top of OpenGL content
+    _fpsLabel = [[NSTextField alloc] initWithFrame:NSMakeRect(10, frame.size.height - 30, 200, 20)];
+    _fpsLabel.bezeled = NO;
+    _fpsLabel.editable = NO;
+    _fpsLabel.selectable = NO;
+    _fpsLabel.drawsBackground = YES;
+    _fpsLabel.backgroundColor = [NSColor colorWithWhite:0.0 alpha:0.6];
+    _fpsLabel.textColor = [NSColor whiteColor];
+    _fpsLabel.font = [NSFont monospacedSystemFontOfSize:12 weight:NSFontWeightMedium];
+    _fpsLabel.autoresizingMask = NSViewMinYMargin;  // Keep at top when resizing
+    _fpsLabel.wantsLayer = YES;
+    _fpsLabel.hidden = YES;
+    [self addSubview:_fpsLabel positioned:NSWindowAbove relativeTo:nil];
 
     NSLog(@"super initWithFrame called");
 
@@ -317,6 +559,7 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
 	if ( _visualPluginData != NULL )
 	{
 		DrawVisual( _visualPluginData );
+		[self updateFPSDisplay];
 	}
 }
 
@@ -381,6 +624,43 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
                 projectm_set_preset_locked(_visualPluginData->pm, !locked);
             }
             return;
+        case kVK_ANSI_F: // 'f' for FPS display toggle
+            if (_visualPluginData) {
+                _visualPluginData->showFPS = !_visualPluginData->showFPS;
+                _fpsLabel.hidden = !_visualPluginData->showFPS;
+                NSLog(@"FPS display toggled: %@", _visualPluginData->showFPS ? @"ON" : @"OFF");
+            }
+            return;
+        case kVK_ANSI_0: // '0' for auto/adaptive quality
+            if (_visualPluginData) {
+                _visualPluginData->adaptiveMeshEnabled = true;
+                NSLog(@"Mesh quality set to Auto (adaptive)");
+            }
+            return;
+        case kVK_ANSI_1: // '1' for high quality mesh (disables adaptive)
+            if (_visualPluginData && _visualPluginData->pm) {
+                _visualPluginData->adaptiveMeshEnabled = false;
+                _visualPluginData->meshQualityLevel = 0;
+                projectm_set_mesh_size(_visualPluginData->pm, kMeshSizes[0][0], kMeshSizes[0][1]);
+                NSLog(@"Mesh quality forced to High (%dx%d)", kMeshSizes[0][0], kMeshSizes[0][1]);
+            }
+            return;
+        case kVK_ANSI_2: // '2' for medium quality mesh (disables adaptive)
+            if (_visualPluginData && _visualPluginData->pm) {
+                _visualPluginData->adaptiveMeshEnabled = false;
+                _visualPluginData->meshQualityLevel = 1;
+                projectm_set_mesh_size(_visualPluginData->pm, kMeshSizes[1][0], kMeshSizes[1][1]);
+                NSLog(@"Mesh quality forced to Medium (%dx%d)", kMeshSizes[1][0], kMeshSizes[1][1]);
+            }
+            return;
+        case kVK_ANSI_3: // '3' for low quality mesh (disables adaptive)
+            if (_visualPluginData && _visualPluginData->pm) {
+                _visualPluginData->adaptiveMeshEnabled = false;
+                _visualPluginData->meshQualityLevel = 2;
+                projectm_set_mesh_size(_visualPluginData->pm, kMeshSizes[2][0], kMeshSizes[2][1]);
+                NSLog(@"Mesh quality forced to Low (%dx%d)", kMeshSizes[2][0], kMeshSizes[2][1]);
+            }
+            return;
         default:
             break;
     }
@@ -388,6 +668,19 @@ OSStatus ConfigureVisual( VisualPluginData * visualPluginData )
 
 - (void)keyUp:(NSEvent *)event {
     [super keyUp:event];
+}
+
+- (void)updateFPSDisplay {
+    if (_visualPluginData == NULL || _visualPluginData->pm == NULL || !_visualPluginData->showFPS) {
+        return;
+    }
+
+    // Update FPS text using measured FPS (not projectM's target FPS)
+    double fps = _visualPluginData->measuredFPS;
+    int meshLevel = _visualPluginData->meshQualityLevel;
+    NSString *qualityStr = (meshLevel == 0) ? @"High" : (meshLevel == 1) ? @"Med" : @"Low";
+    NSString *modeStr = _visualPluginData->adaptiveMeshEnabled ? @"Auto" : @"Locked";
+    [_fpsLabel setStringValue:[NSString stringWithFormat:@"%.1f FPS | %@: %@", fps, modeStr, qualityStr]];
 }
 
 @end
@@ -414,8 +707,8 @@ void GetVisualName( ITUniStr255 name )
 //
 OptionBits GetVisualOptions( void )
 {
-	OptionBits		options = (kVisualUsesOnly3D | kVisualWantsIdleMessages);
-	
+	OptionBits		options = (kVisualUsesOnly3D | kVisualWantsIdleMessages | kVisualWantsConfigure);
+
 #if USE_SUBVIEW
 	options |= kVisualUsesSubview;
 #endif

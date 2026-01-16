@@ -93,6 +93,9 @@ While the visualizer is running:
 - `p` - Previous preset
 - `r` - Random preset (hard cut)
 - `l` - Lock/unlock current preset
+- `f` - Toggle FPS display
+- `0` - Auto mesh quality (adaptive)
+- `1` / `2` / `3` - Force mesh quality (high/medium/low, disables adaptive)
 
 ## Uninstalling
 

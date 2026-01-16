@@ -99,6 +99,8 @@ struct VisualPluginData {
     RenderVisualData renderData;      // Audio waveform & spectrum
     ITTrackInfo trackInfo;            // Song metadata
     bool playing;                     // Playback state
+    UInt32 cachedRefreshRate;         // Display refresh rate (cached)
+    int meshQualityLevel;             // Adaptive quality: 0=high, 1=medium, 2=low
 };
 ```
 
@@ -107,16 +109,29 @@ struct VisualPluginData {
 - `p` - Previous preset
 - `r` - Random preset (hard cut)
 - `l` - Lock/unlock current preset (prevents auto-advancement)
+- `f` - Toggle FPS/mesh quality overlay
+- `0` - Enable adaptive mesh quality (auto)
+- `1` - Force high quality mesh (140×110, disables adaptive)
+- `2` - Force medium quality mesh (96×72, disables adaptive)
+- `3` - Force low quality mesh (64×48, disables adaptive)
 
 **Technical notes:**
 - Uses projectM 4.x API with separate playlist library
-- OpenGL 3.2 Core Profile with high-DPI support (deprecated by Apple, but functional)
+- OpenGL 3.2 Core Profile with high-DPI support and VSync enabled
 - Dynamic refresh rate detection for high-refresh displays (capped at 120Hz, falls back to 60Hz on older macOS)
+- Adaptive mesh quality: automatically reduces mesh resolution when FPS drops, recovers when performance improves
 - 5 FPS when stopped to conserve power
 - Audio data is interleaved from dual channels before passing to projectM via `projectm_pcm_add_uint8()`
 - Rendering via `projectm_opengl_render_frame()`
 - Plugin runs in iTunes' main UI thread
 - rpath set to `/usr/local/lib` for finding libprojectM at runtime
+
+**Adaptive mesh quality levels:**
+| Level | Resolution | Vertices | Trigger |
+|-------|------------|----------|---------|
+| High | 140×110 | 15,400 | Default, FPS > 95% target |
+| Medium | 96×72 | 6,912 | FPS < 80% target |
+| Low | 64×48 | 3,072 | FPS still < 80% |
 
 ## Installer
 

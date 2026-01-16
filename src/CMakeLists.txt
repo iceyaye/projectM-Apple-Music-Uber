@@ -22,6 +22,7 @@ target_link_libraries(ProjectM
     "-framework AppKit"
     "-framework CoreData"
     "-framework Foundation"
+    "-framework QuartzCore"
     libprojectM::projectM
     libprojectM::playlist
     )

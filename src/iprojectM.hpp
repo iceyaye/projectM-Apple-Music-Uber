@@ -94,6 +94,14 @@ struct VisualPluginData;
 #define kPlayingPulseRateInHz		60							// when iTunes is playing, draw N times a second
 #define kStoppedPulseRateInHz		5							// when iTunes is not playing, draw N times a second
 
+// Adaptive mesh quality levels (width x height)
+#define kMeshQualityLevels			3
+static const int kMeshSizes[kMeshQualityLevels][2] = {
+    {140, 110},  // High: 15,400 vertices
+    {96, 72},    // Medium: 6,912 vertices
+    {64, 48}     // Low: 3,072 vertices
+};
+
 struct VisualPluginData
 {
 	void *				appCookie;
@@ -133,6 +141,17 @@ struct VisualPluginData
 
 	UInt32				cachedRefreshRate;						// display refresh rate (cached at activation)
 
+	// Adaptive mesh quality
+	int					meshQualityLevel;						// 0=high, 1=medium, 2=low
+	int					framesAtCurrentLevel;					// frames since last quality change
+	UInt32				frameCounter;							// total frames for periodic checks
+	Boolean				adaptiveMeshEnabled;					// false when manually set via 1/2/3 keys
+
+	// FPS display and measurement
+	Boolean				showFPS;								// toggle FPS overlay display
+	double				lastFrameTime;							// timestamp of last frame (seconds)
+	double				measuredFPS;							// actual measured FPS (smoothed)
+
 	time_t				drawInfoTimeOut;						// when should we stop showing info/artwork?
 };
 typedef struct VisualPluginData VisualPluginData;
@@ -161,5 +180,6 @@ OSStatus	ConfigureVisual( VisualPluginData * visualPluginData );
 
 void        initProjectM( VisualPluginData * visualPluginData, std::string presetPath );
 void        renderProjectMTexture( VisualPluginData * visualPluginData );
+void        AdaptMeshQuality( VisualPluginData * visualPluginData );
 
 #endif

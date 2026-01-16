@@ -6,6 +6,10 @@
 #include "projectM-4/playlist.h"
 #include <string.h>
 
+// NSUserDefaults keys (must match iprojectM_mac.mm)
+static NSString * const kProjectMMeshQuality = @"projectM.meshQuality";
+static NSString * const kProjectMPresetDuration = @"projectM.presetDuration";
+static NSString * const kProjectMBeatSensitivity = @"projectM.beatSensitivity";
 
 // projectM
 void initProjectM( VisualPluginData * visualPluginData, std::string presetPath ) {
@@ -16,22 +20,49 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
         return;
     }
 
-    // Configure settings via individual API calls
-    projectm_set_mesh_size(pm, 140, 110);
+    // Load saved settings from NSUserDefaults
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
-    // Detect display refresh rate for ProMotion displays, capped at 120Hz
+    // Mesh quality: 0=auto, 1=high, 2=medium, 3=low
+    NSInteger meshQuality = [defaults objectForKey:kProjectMMeshQuality] ? [defaults integerForKey:kProjectMMeshQuality] : 0;
+
+    // Configure mesh settings
+    visualPluginData->framesAtCurrentLevel = 0;
+    visualPluginData->frameCounter = 0;
+
+    if (meshQuality == 0) {
+        // Auto/Adaptive - start at highest quality
+        visualPluginData->meshQualityLevel = 0;
+        visualPluginData->adaptiveMeshEnabled = true;
+        projectm_set_mesh_size(pm, kMeshSizes[0][0], kMeshSizes[0][1]);
+    } else {
+        // Manual quality: 1=high(0), 2=medium(1), 3=low(2)
+        int level = (int)(meshQuality - 1);
+        visualPluginData->meshQualityLevel = level;
+        visualPluginData->adaptiveMeshEnabled = false;
+        projectm_set_mesh_size(pm, kMeshSizes[level][0], kMeshSizes[level][1]);
+    }
+
+    // Detect display refresh rate for ProMotion displays
     UInt32 refreshRate = 60;
     if (@available(macOS 12.0, *)) {
-        refreshRate = (UInt32)MIN([NSScreen.mainScreen maximumFramesPerSecond], 120);
+        refreshRate = (UInt32)MIN([NSScreen.mainScreen maximumFramesPerSecond], 240);
     }
     visualPluginData->cachedRefreshRate = refreshRate;
     projectm_set_fps(pm, refreshRate);
     NSLog(@"Display refresh rate: %u Hz", refreshRate);
+
     projectm_set_soft_cut_duration(pm, 2.0);
     projectm_set_aspect_correction(pm, true);
     projectm_set_easter_egg(pm, 0.0f);
-    projectm_set_preset_duration(pm, 30.0);
-    projectm_set_beat_sensitivity(pm, 3.0f);
+
+    // Load preset duration (default 30s)
+    double presetDuration = [defaults objectForKey:kProjectMPresetDuration] ? [defaults doubleForKey:kProjectMPresetDuration] : 30.0;
+    projectm_set_preset_duration(pm, presetDuration);
+
+    // Load beat sensitivity (default 3.0)
+    double beatSensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
+    projectm_set_beat_sensitivity(pm, (float)beatSensitivity);
 
     // Set texture search paths
     const char* texturePaths[] = { presetPath.c_str() };
@@ -62,6 +93,65 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
 
 // Keyboard handling removed in projectM 4.x API
 // Key events can be handled manually via playlist functions if needed
+
+//-------------------------------------------------------------------------------------------------
+//	AdaptMeshQuality
+//-------------------------------------------------------------------------------------------------
+// Dynamically adjusts mesh resolution based on FPS performance
+//
+void AdaptMeshQuality( VisualPluginData * visualPluginData )
+{
+    if (visualPluginData->pm == nullptr) {
+        return;
+    }
+
+    // Skip if adaptive mesh is disabled (manually set via 1/2/3 keys)
+    if (!visualPluginData->adaptiveMeshEnabled) {
+        return;
+    }
+
+    // Only check every 60 frames (~0.5-1 sec depending on refresh rate)
+    visualPluginData->frameCounter++;
+    if (visualPluginData->frameCounter < 60) {
+        return;
+    }
+    visualPluginData->frameCounter = 0;
+
+    // Use measured FPS, not projectM's target FPS
+    double fps = visualPluginData->measuredFPS;
+    double target = (double)visualPluginData->cachedRefreshRate;
+    int currentLevel = visualPluginData->meshQualityLevel;
+
+    // If FPS drops below 80% of target, reduce quality immediately
+    if (fps < target * 0.8 && currentLevel < kMeshQualityLevels - 1) {
+        currentLevel++;
+        projectm_set_mesh_size(visualPluginData->pm,
+                               kMeshSizes[currentLevel][0],
+                               kMeshSizes[currentLevel][1]);
+        visualPluginData->meshQualityLevel = currentLevel;
+        visualPluginData->framesAtCurrentLevel = 0;
+        NSLog(@"Mesh quality reduced to level %d (%dx%d) - FPS: %.1f",
+              currentLevel, kMeshSizes[currentLevel][0], kMeshSizes[currentLevel][1], fps);
+    }
+    // If FPS is consistently above 95% of target, consider raising quality
+    else if (fps > target * 0.95 && currentLevel > 0) {
+        visualPluginData->framesAtCurrentLevel++;
+        // Wait ~2 seconds of sustained good performance before upgrading
+        if (visualPluginData->framesAtCurrentLevel >= 4) {
+            currentLevel--;
+            projectm_set_mesh_size(visualPluginData->pm,
+                                   kMeshSizes[currentLevel][0],
+                                   kMeshSizes[currentLevel][1]);
+            visualPluginData->meshQualityLevel = currentLevel;
+            visualPluginData->framesAtCurrentLevel = 0;
+            NSLog(@"Mesh quality raised to level %d (%dx%d) - FPS: %.1f",
+                  currentLevel, kMeshSizes[currentLevel][0], kMeshSizes[currentLevel][1], fps);
+        }
+    } else {
+        // Reset stability counter if FPS fluctuates
+        visualPluginData->framesAtCurrentLevel = 0;
+    }
+}
 
 void renderProjectMTexture( VisualPluginData * visualPluginData ){
     // this needs to be updated for gl3 (see SDL version)
@@ -221,6 +311,9 @@ void PulseVisual( VisualPluginData * visualPluginData, UInt32 timeStampID, const
 
 	// if desired, adjust the pulse rate
 	UpdatePulseRate( visualPluginData, ioPulseRate );
+
+	// dynamically adjust mesh quality based on performance
+	AdaptMeshQuality( visualPluginData );
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -362,6 +455,11 @@ static OSStatus VisualPluginHandler(OSType message,VisualPluginMessageInfo *mess
 
             // Invalidate visual seems to lag a few frames behind, so let's draw as soon as possible
             DrawVisual( visualPluginData );
+
+            // Update FPS overlay if visible
+            if (visualPluginData->showFPS && visualPluginData->subview) {
+                [visualPluginData->subview performSelector:@selector(updateFPSDisplay)];
+            }
 //            InvalidateVisual( visualPluginData );
 			break;
 		}
