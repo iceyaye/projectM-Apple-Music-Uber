@@ -99,7 +99,7 @@ Either run the generated `.pkg` installer, or manually copy:
 
 ```bash
 mkdir -p ~/Library/iTunes/iTunes\ Plug-ins/
-cp -R build/src/ProjectM.bundle ~/Library/iTunes/iTunes\ Plug-ins/
+cp -R build/src/ProjectM-Uber.bundle ~/Library/iTunes/iTunes\ Plug-ins/
 ```
 
 Then restart the Music app and select **View → Visualizer → projectM**.
@@ -138,13 +138,13 @@ Settings are saved automatically and persist across sessions.
 
 If installed via the `.pkg` installer, use the uninstaller at:
 ```
-/Applications/Utilities/Uninstall projectM.app
+/Applications/Utilities/Uninstall projectM-Uber.app
 ```
 
 Or manually delete:
 ```bash
-rm -rf ~/Library/iTunes/iTunes\ Plug-ins/ProjectM.bundle
-rm -rf /Library/iTunes/iTunes\ Plug-ins/ProjectM.bundle
+rm -rf ~/Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle
+rm -rf /Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle
 ```
 
 ## License

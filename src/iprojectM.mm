@@ -51,7 +51,7 @@ void initProjectM( VisualPluginData * visualPluginData, std::string presetPath )
     // Detect display refresh rate for ProMotion displays
     UInt32 refreshRate = 60;
     if (@available(macOS 12.0, *)) {
-        refreshRate = (UInt32)MIN([NSScreen.mainScreen maximumFramesPerSecond], 240);
+        refreshRate = (UInt32)MIN([NSScreen.mainScreen maximumFramesPerSecond], 120);
     }
     visualPluginData->cachedRefreshRate = refreshRate;
     projectm_set_fps(pm, refreshRate);

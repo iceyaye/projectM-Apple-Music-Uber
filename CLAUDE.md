@@ -23,7 +23,7 @@ cmake --build build
 
 # Install plugin manually
 mkdir -p ~/Library/iTunes/iTunes\ Plug-ins/
-cp -R _CPack_Packages/Darwin/productbuild/ProjectM-MusicPlugin-*/MusicPlugin/Library/iTunes/iTunes\ Plug-ins/ProjectM.bundle ~/Library/iTunes/iTunes\ Plug-ins/
+cp -R _CPack_Packages/Darwin/productbuild/ProjectM-Apple-Music-Uber-*/MusicPlugin/Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle ~/Library/iTunes/iTunes\ Plug-ins/
 
 # Create installer package
 cpack --config build/CPackConfig.cmake
@@ -137,14 +137,14 @@ struct VisualPluginData {
 
 The `.pkg` installer:
 - Installs plugin to `~/Library/iTunes/iTunes Plug-ins/` or `/Library/iTunes/iTunes Plug-ins/`
-- Creates uninstaller at `/Applications/Utilities/Uninstall projectM.app`
+- Creates uninstaller at `/Applications/Utilities/Uninstall projectM-Uber.app`
 - Signed with Developer ID for Gatekeeper approval
 
 **Verify signatures:**
 ```bash
 # Check bundle signature
-codesign -dv --verbose=2 ~/Library/iTunes/iTunes\ Plug-ins/ProjectM.bundle
+codesign -dv --verbose=2 ~/Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle
 
 # Check package signature
-pkgutil --check-signature ProjectM-MusicPlugin-4.1.pkg
+pkgutil --check-signature ProjectM-Apple-Music-Uber-4.1.pkg
 ```
