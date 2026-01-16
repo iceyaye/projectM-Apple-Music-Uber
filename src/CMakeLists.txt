@@ -1,5 +1,5 @@
 
-add_library(ProjectM MODULE
+add_library(ProjectM-Uber MODULE
     macos/iTunesAPI.cpp
     macos/iTunesAPI.h
     macos/iTunesVisualAPI.h
@@ -10,13 +10,13 @@ add_library(ProjectM MODULE
     iprojectM_mac.mm
     )
 
-set_target_properties(ProjectM PROPERTIES
+set_target_properties(ProjectM-Uber PROPERTIES
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Resources/ProjectM-plugin-info.plist"
     BUILD_RPATH "/usr/local/lib"
     INSTALL_RPATH "/usr/local/lib"
     )
 
-target_link_libraries(ProjectM
+target_link_libraries(ProjectM-Uber
     PRIVATE
     "-framework Cocoa"
     "-framework AppKit"

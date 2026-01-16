@@ -1,8 +1,8 @@
 
 # The actual bundle directory, including the proper iTunes plug-in dir.
-set(PROJECTM_PLUGIN_BUNDLE_DIR "Library/iTunes/iTunes Plug-ins/ProjectM.bundle")
+set(PROJECTM_PLUGIN_BUNDLE_DIR "Library/iTunes/iTunes Plug-ins/ProjectM-Uber.bundle")
 
-install(TARGETS ProjectM
+install(TARGETS ProjectM-Uber
     LIBRARY DESTINATION "${PROJECTM_PLUGIN_BUNDLE_DIR}/Contents/MacOS"
     COMPONENT MusicPlugin
     )
@@ -42,7 +42,7 @@ set(CPACK_POSTFLIGHT_MUSICPLUGIN_SCRIPT "${CMAKE_SOURCE_DIR}/src/Resources/posti
 # Build PKG installer with CPack
 set(CPACK_GENERATOR "productbuild")
 set(CPACK_COMPONENTS_ALL "MusicPlugin")
-set(CPACK_PACKAGE_NAME "ProjectM-MusicPlugin")
+set(CPACK_PACKAGE_NAME "ProjectM-Apple-Music-Uber")
 set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${PROJECT_VERSION}")
 set(CPACK_PKGBUILD_IDENTITY_NAME "${CODESIGN_IDENTITY_INSTALLER}")
 set(CPACK_PRODUCTBUILD_IDENTITY_NAME "${CODESIGN_IDENTITY_INSTALLER}")
@@ -69,6 +69,6 @@ include(CPack)
 # Workaround for a bug in CMake that results in creating an empty installer
 # https://gitlab.kitware.com/cmake/cmake/-/issues/18201
 cpack_add_component(MusicPlugin
-    DISPLAY_NAME "projectM Music Plug-in"
+    DISPLAY_NAME "projectM-Apple-Music-Uber"
     REQUIRED
     )

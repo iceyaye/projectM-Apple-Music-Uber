@@ -1,7 +1,7 @@
 #!/bin/bash
 # Create uninstaller in /Applications/Utilities/
 
-UNINSTALLER="/Applications/Utilities/Uninstall projectM.app"
+UNINSTALLER="/Applications/Utilities/Uninstall projectM-Uber.app"
 
 # Create the uninstaller app bundle structure
 mkdir -p "$UNINSTALLER/Contents/MacOS"
@@ -14,9 +14,9 @@ cat > "$UNINSTALLER/Contents/Info.plist" << 'PLIST'
     <key>CFBundleExecutable</key>
     <string>uninstall</string>
     <key>CFBundleIdentifier</key>
-    <string>net.projectm.uninstaller</string>
+    <string>net.projectm-uber.uninstaller</string>
     <key>CFBundleName</key>
-    <string>Uninstall projectM</string>
+    <string>Uninstall projectM-Uber</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
     <key>CFBundleShortVersionString</key>
@@ -32,29 +32,29 @@ PLIST
 cat > "$UNINSTALLER/Contents/MacOS/uninstall" << 'SCRIPT'
 #!/bin/bash
 
-osascript -e 'display dialog "This will uninstall projectM Music Plugin. Continue?" buttons {"Cancel", "Uninstall"} default button "Uninstall" with icon caution' || exit 0
+osascript -e 'display dialog "This will uninstall projectM-Apple-Music-Uber. Continue?" buttons {"Cancel", "Uninstall"} default button "Uninstall" with icon caution' || exit 0
 
 REMOVED=""
 
 # Remove from user directory
-if [ -d "$HOME/Library/iTunes/iTunes Plug-ins/ProjectM.bundle" ]; then
-    rm -rf "$HOME/Library/iTunes/iTunes Plug-ins/ProjectM.bundle"
+if [ -d "$HOME/Library/iTunes/iTunes Plug-ins/ProjectM-Uber.bundle" ]; then
+    rm -rf "$HOME/Library/iTunes/iTunes Plug-ins/ProjectM-Uber.bundle"
     REMOVED="$REMOVED\n• ~/Library/iTunes/iTunes Plug-ins/"
 fi
 
 # Remove from system directory (requires admin)
-if [ -d "/Library/iTunes/iTunes Plug-ins/ProjectM.bundle" ]; then
-    osascript -e 'do shell script "rm -rf /Library/iTunes/iTunes\\ Plug-ins/ProjectM.bundle" with administrator privileges'
+if [ -d "/Library/iTunes/iTunes Plug-ins/ProjectM-Uber.bundle" ]; then
+    osascript -e 'do shell script "rm -rf /Library/iTunes/iTunes\\ Plug-ins/ProjectM-Uber.bundle" with administrator privileges'
     REMOVED="$REMOVED\n• /Library/iTunes/iTunes Plug-ins/"
 fi
 
 # Remove this uninstaller
-osascript -e 'do shell script "rm -rf /Applications/Utilities/Uninstall\\ projectM.app" with administrator privileges' &
+osascript -e 'do shell script "rm -rf /Applications/Utilities/Uninstall\\ projectM-Uber.app" with administrator privileges' &
 
 if [ -n "$REMOVED" ]; then
-    osascript -e "display dialog \"projectM Music Plugin has been uninstalled from:$REMOVED\n\nPlease restart Music app.\" buttons {\"OK\"} default button \"OK\""
+    osascript -e "display dialog \"projectM-Apple-Music-Uber has been uninstalled from:$REMOVED\n\nPlease restart Music app.\" buttons {\"OK\"} default button \"OK\""
 else
-    osascript -e 'display dialog "projectM Music Plugin was not found." buttons {"OK"} default button "OK"'
+    osascript -e 'display dialog "projectM-Apple-Music-Uber was not found." buttons {"OK"} default button "OK"'
 fi
 SCRIPT
 
