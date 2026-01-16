@@ -1,7 +1,21 @@
-projectM Plug-In for Apple Music
-================================
+projectM-Apple-Music-Uber
+=========================
 
-This repository contains the sources for the macOS Apple Music app projectM visualization plug-in that turns your music into awesome visuals while you listen.
+A high-performance fork of the projectM visualization plug-in for macOS Apple Music.
+
+## About This Fork
+
+This is a fork of [kblaschke/frontend-music-plug-in](https://github.com/kblaschke/frontend-music-plug-in) with the following enhancements:
+
+- **Updated to projectM 4.1** - Latest visualization engine
+- **Adaptive mesh quality** - Automatically adjusts rendering quality based on performance
+- **Options menu** - User-friendly settings panel accessible via View → Visualizer → Options
+- **Performance optimizations** - VSync support, ProMotion display handling (up to 120Hz), reduced idle power consumption
+- **FPS overlay** - Real-time performance monitoring with preset name display
+
+## Acknowledgments
+
+Thanks to [kblaschke](https://github.com/kblaschke) for the original plugin and for maintaining the [projectM](https://github.com/projectM-visualizer) visualization library. This project wouldn't exist without his work keeping the MilkDrop legacy alive.
 
 ## Requirements
 
@@ -16,9 +30,13 @@ Build from source:
 ```bash
 git clone https://github.com/projectM-visualizer/projectm.git
 cd projectm
-cmake -B build -DCMAKE_INSTALL_PREFIX=/usr/local -DBUILD_SHARED_LIBS=ON -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
-cmake --build build
-sudo cmake --install build
+cmake -B build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=/usr/local \
+    -DBUILD_SHARED_LIBS=ON \
+    -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+  cmake --build build
+  sudo cmake --install build
 ```
 
 ## Downloading Presets and Textures
@@ -35,7 +53,7 @@ Presets and textures are not included in this repository. Download them separate
 
 Place them in the project root:
 ```
-frontend-music-plug-in/
+projectM-Apple-Music-Uber/
 ├── presets/
 │   └── *.milk files
 └── textures/
