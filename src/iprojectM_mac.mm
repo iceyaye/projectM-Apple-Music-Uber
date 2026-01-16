@@ -104,6 +104,7 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 											  defer:NO];
 	_window.title = @"projectM Settings";
 	_window.delegate = self;
+	_window.releasedWhenClosed = NO;  // Keep window alive after closing
 	[_window center];
 
 	NSView *contentView = _window.contentView;
@@ -242,53 +243,65 @@ extern "C" OSStatus iTunesPluginMainMachO( OSType inMessage, PluginMessageInfo *
 
 - (void)showWithPluginData:(VisualPluginData *)pluginData {
 	_visualPluginData = pluginData;
+
+	// Ensure window is created before loading settings
+	if (_window == nil) {
+		[self createWindow];
+	}
+
 	[self loadSettings];
 	[_window makeKeyAndOrderFront:nil];
 	[NSApp activateIgnoringOtherApps:YES];
 }
 
 - (void)loadSettings {
+	// Guard against UI not being initialized
+	if (_window == nil) {
+		NSLog(@"ProjectM Settings: Window not initialized, skipping loadSettings");
+		return;
+	}
+
 	NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
 
 	// VSync - default to NO (disabled for performance measurement)
 	BOOL vsync = [defaults objectForKey:kProjectMVSyncEnabled] ? [defaults boolForKey:kProjectMVSyncEnabled] : NO;
-	_vsyncCheckbox.state = vsync ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_vsyncCheckbox) _vsyncCheckbox.state = vsync ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Shuffle - default to YES
 	BOOL shuffle = [defaults objectForKey:kProjectMShuffleEnabled] ? [defaults boolForKey:kProjectMShuffleEnabled] : YES;
-	_shuffleCheckbox.state = shuffle ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_shuffleCheckbox) _shuffleCheckbox.state = shuffle ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Hard cut enabled - default to YES
 	BOOL hardCut = [defaults objectForKey:kProjectMHardCutEnabled] ? [defaults boolForKey:kProjectMHardCutEnabled] : YES;
-	_hardCutCheckbox.state = hardCut ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_hardCutCheckbox) _hardCutCheckbox.state = hardCut ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Show FPS - default to NO
 	BOOL showFPS = [defaults objectForKey:kProjectMShowFPS] ? [defaults boolForKey:kProjectMShowFPS] : NO;
-	_showFPSCheckbox.state = showFPS ? NSControlStateValueOn : NSControlStateValueOff;
+	if (_showFPSCheckbox) _showFPSCheckbox.state = showFPS ? NSControlStateValueOn : NSControlStateValueOff;
 
 	// Mesh quality - 0=auto, 1=high, 2=medium, 3=low
 	NSInteger meshQuality = [defaults objectForKey:kProjectMMeshQuality] ? [defaults integerForKey:kProjectMMeshQuality] : 0;
-	[_meshQualityPopup selectItemAtIndex:meshQuality];
+	if (_meshQualityPopup) [_meshQualityPopup selectItemAtIndex:meshQuality];
 
 	// Preset duration - default 30s
 	double duration = [defaults objectForKey:kProjectMPresetDuration] ? [defaults doubleForKey:kProjectMPresetDuration] : 30.0;
-	_presetDurationSlider.doubleValue = duration;
-	_presetDurationLabel.stringValue = [NSString stringWithFormat:@"%.0fs", duration];
+	if (_presetDurationSlider) _presetDurationSlider.doubleValue = duration;
+	if (_presetDurationLabel) _presetDurationLabel.stringValue = [NSString stringWithFormat:@"%.0fs", duration];
 
 	// Beat sensitivity - default 3.0
 	double beatSensitivity = [defaults objectForKey:kProjectMBeatSensitivity] ? [defaults doubleForKey:kProjectMBeatSensitivity] : 3.0;
-	_beatSensitivitySlider.doubleValue = beatSensitivity;
-	_beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", beatSensitivity];
+	if (_beatSensitivitySlider) _beatSensitivitySlider.doubleValue = beatSensitivity;
+	if (_beatSensitivityLabel) _beatSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", beatSensitivity];
 
 	// Hard cut sensitivity - default 2.0
 	double hardCutSensitivity = [defaults objectForKey:kProjectMHardCutSensitivity] ? [defaults doubleForKey:kProjectMHardCutSensitivity] : 2.0;
-	_hardCutSensitivitySlider.doubleValue = hardCutSensitivity;
-	_hardCutSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", hardCutSensitivity];
+	if (_hardCutSensitivitySlider) _hardCutSensitivitySlider.doubleValue = hardCutSensitivity;
+	if (_hardCutSensitivityLabel) _hardCutSensitivityLabel.stringValue = [NSString stringWithFormat:@"%.1f", hardCutSensitivity];
 
 	// Soft cut duration - default 2.0s
 	double softCutDuration = [defaults objectForKey:kProjectMSoftCutDuration] ? [defaults doubleForKey:kProjectMSoftCutDuration] : 2.0;
-	_softCutDurationSlider.doubleValue = softCutDuration;
-	_softCutDurationLabel.stringValue = [NSString stringWithFormat:@"%.1fs", softCutDuration];
+	if (_softCutDurationSlider) _softCutDurationSlider.doubleValue = softCutDuration;
+	if (_softCutDurationLabel) _softCutDurationLabel.stringValue = [NSString stringWithFormat:@"%.1fs", softCutDuration];
 }
 
 - (void)vsyncChanged:(NSButton *)sender {

@@ -147,6 +147,18 @@ rm -rf ~/Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle
 rm -rf /Library/iTunes/iTunes\ Plug-ins/ProjectM-Uber.bundle
 ```
 
+## Troubleshooting
+
+### Plugin not showing in Visualizer menu after a crash
+
+If the plugin crashed, Music.app may have blacklisted it. Remove the blacklist file and restart Music:
+
+```bash
+rm ~/Library/iTunes/iTunes\ Plug-ins/DisabledPlugins.plist
+```
+
+Then quit and reopen Music.app.
+
 ## License
 
 LGPL 2.1 - See [LICENSE.md](LICENSE.md)
